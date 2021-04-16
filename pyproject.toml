@@ -9,6 +9,7 @@ license = "Apache-2.0"
 python = ">=3.6.3,<4.0"
 aries-cloudagent = "^0.6.0"
 pydantic = "^1.8.1"
+typing-extensions = "^3.7.4"
 
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.12.0"
