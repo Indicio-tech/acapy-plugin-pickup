@@ -7,7 +7,7 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.3,<4.0"
-aries-cloudagent = "^0.6.0"
+aries-cloudagent = {git="https://github.com/dbluhm/aries-cloudagent-python", rev="feature/transport-manager-access"}
 pydantic = "^1.8.1"
 typing-extensions = "^3.7.4"
 

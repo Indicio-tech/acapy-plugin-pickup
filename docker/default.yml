@@ -1,0 +1,27 @@
+label: Aries Cloud Agent + Pickup
+
+# Admin
+admin: [0.0.0.0, 3001]
+admin-insecure-mode: true
+
+# Load toolbox plugin
+plugin:
+  - acapy_plugin_pickup
+
+# Transport
+inbound-transport:
+  - [http, 0.0.0.0, 3000]
+outbound-transport: http
+endpoint:
+  - http://localhost:3000
+  - ws://localhost:3000
+
+# Ledger
+no-ledger: true
+
+# Connections
+debug-connections: true
+debug-credentials: true
+debug-presentations: true
+auto-accept-invites: true
+auto-accept-requests: true
