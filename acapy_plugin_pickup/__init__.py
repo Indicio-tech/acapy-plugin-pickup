@@ -2,10 +2,17 @@
 
 from aries_cloudagent.config.injection_context import InjectionContext
 from aries_cloudagent.core.protocol_registry import ProtocolRegistry
+from .protocol import Status, StatusRequest, DeliveryRequest
 
 
 async def setup(context: InjectionContext):
     """Setup plugin."""
-    protocol_registry: ProtocolRegistry = context.inject(ProtocolRegistry)
+    protocol_registry = context.inject(ProtocolRegistry)
     assert protocol_registry
-    protocol_registry.register_message_types({})
+    protocol_registry.register_message_types(
+        {
+            Status.message_type: Status,
+            StatusRequest.message_type: StatusRequest,
+            DeliveryRequest.message_type: DeliveryRequest,
+        }
+    )

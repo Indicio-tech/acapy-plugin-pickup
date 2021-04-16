@@ -14,7 +14,7 @@ inbound-transport:
 outbound-transport: http
 endpoint:
   - http://localhost:3000
-  - ws://localhost:3000
+enable-undelivered-queue: true
 
 # Ledger
 no-ledger: true
@@ -25,3 +25,5 @@ debug-credentials: true
 debug-presentations: true
 auto-accept-invites: true
 auto-accept-requests: true
+connections-invite: true
+log-level: debug
