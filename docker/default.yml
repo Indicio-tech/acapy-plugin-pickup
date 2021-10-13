@@ -27,3 +27,6 @@ auto-accept-invites: true
 auto-accept-requests: true
 connections-invite: true
 log-level: debug
+
+# Accept mediation requests
+open-mediation: true
