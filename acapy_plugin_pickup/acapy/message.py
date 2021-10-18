@@ -5,6 +5,7 @@ import logging
 from typing import Any, ClassVar, Dict, Mapping, Optional
 from uuid import uuid4
 
+from aries_cloudagent.messaging.base_message import BaseMessage
 from aries_cloudagent.messaging.base_handler import BaseHandler
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
@@ -62,7 +63,7 @@ class Transport(BaseModel):
     return_route: Literal["none", "all", "thread"] = "none"
 
 
-class AgentMessage(BaseModel, ABC):
+class AgentMessage(BaseModel, BaseMessage, ABC):
     """AgentMessage Interface Definition."""
 
     message_type: ClassVar[str] = ""
@@ -76,6 +77,10 @@ class AgentMessage(BaseModel, ABC):
         """AgentMessage Config."""
 
         json_encoders = {ISODateTime: lambda value: value.isoformat()}
+
+    @property
+    def _id(self):
+        return self.id
 
     @validator("type", pre=True, always=True)
     @classmethod
