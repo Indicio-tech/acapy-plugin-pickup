@@ -1,4 +1,4 @@
-FROM bcgovimages/aries-cloudagent:py36-1.16-0_0.6.0
+FROM bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
 
 RUN pip3 install poetry
 RUN poetry config virtualenvs.create false
