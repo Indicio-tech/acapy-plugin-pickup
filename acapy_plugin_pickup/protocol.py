@@ -1,10 +1,11 @@
 """Pickup Protocol."""
 
 import logging
-from typing import Optional, cast
+from typing import AsyncGenerator, Optional, List, Set, cast
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
+from aries_cloudagent.transport.inbound.delivery_queue import DeliveryQueue
 from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 
@@ -94,3 +95,14 @@ class DeliveryRequest(AgentMessage):
             reply_to_verkey=key,
             to_session_only=True,
         )
+
+# This is the start of a message updating the Live Delivery status
+# Will require a deeper analysis of ACA-Py to fully implement
+class LiveDeliveryChange(AgentMessage):
+    """Live Delivery Change message."""
+    message_type = f"{PROTOCOL}/live-delivery-change"
+    live_delivery: bool = False
+
+    async def handle(self, context: RequestContext, responder: BaseResponder):
+        """Handle LiveDeliveryChange message"""
+        return await super().handle(context, responder)
