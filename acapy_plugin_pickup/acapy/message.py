@@ -78,10 +78,6 @@ class AgentMessage(BaseModel, BaseMessage, ABC):
 
         json_encoders = {ISODateTime: lambda value: value.isoformat()}
 
-    @property
-    def _id(self):
-        return self.id
-
     @validator("type", pre=True, always=True)
     @classmethod
     def _type(cls, value):
@@ -94,14 +90,23 @@ class AgentMessage(BaseModel, BaseMessage, ABC):
             )
         return value
 
+    @property
+    def _id(self):
+        return self.id
+    
+    @property
+    def _thread_id(self) -> Optional[str]:
+        """Return this message's thread id."""
+        return self.thread and self.thread.thid
+    
     @classmethod
-    def deserialize(cls, value: Mapping[str, Any]) -> "AgentMessage":
-        """Deserialize an instance of message."""
-        return parse_obj_as(cls, value)
-
     def serialize(self) -> dict:
         """Serialize an instance of message to dictionary."""
         return self.dict(exclude_none=True, by_alias=True)
+        
+    def deserialize(cls, value: Mapping[str, Any]) -> "AgentMessage":
+        """Deserialize an instance of message."""
+        return parse_obj_as(cls, value)
 
     def assign_thread_from(self, msg: "AgentMessage"):
         """Assign thread info from another message."""
@@ -145,7 +150,4 @@ class AgentMessage(BaseModel, BaseMessage, ABC):
         """Dump to json."""
         return self.json()
 
-    @property
-    def _thread_id(self) -> Optional[str]:
-        """Return this message's thread id."""
-        return self.thread and self.thread.thid
+    
