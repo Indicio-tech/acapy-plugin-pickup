@@ -6,9 +6,13 @@ from typing import AsyncGenerator, Optional, List, Set, cast
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
-from aries_cloudagent.transport.inbound.delivery_queue import DeliveryQueue
+from aries_cloudagent.transport.inbound.delivery_queue import (
+    DeliveryQueue,
+    QueuedMessage,
+)
 from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
+from aries_cloudagent.transport.outbound.message import OutboundMessage
 
 from .acapy import AgentMessage
 from .acapy.error import HandlerException
@@ -82,13 +86,21 @@ class DeliveryRequest(AgentMessage):
 
         if queue.has_message_for_key(key):
             session = self.determine_session(manager, key)
-            for _ in range(0, min(self.limit, queue.message_count_for_key(key))):
-                msg = get_one_message_for_key_without_pop(queue, key, _)
-                if not session.accept_response(msg):
+            if session is None:
+                LOGGER.warning("No session available to deliver messages as requested")
+                return
+
+            returned_count = 0
+            for msg in get_messages_for_key(queue, key):
+                if session.accept_response(msg):
+                    returned_count += 1
+                else:
                     LOGGER.warning(
                         "Failed to return message to session when we were "
                         "expecting it would work"
                     )
+                if returned_count >= self.limit:
+                    break
         else:
             await responder.send(
                 Status(message_count=queue.message_count_for_key(key)),
@@ -101,6 +113,7 @@ class DeliveryRequest(AgentMessage):
 # Will require a deeper analysis of ACA-Py to fully implement
 class LiveDeliveryChange(AgentMessage):
     """Live Delivery Change message."""
+
     message_type = f"{PROTOCOL}/live-delivery-change"
     live_delivery: bool = False
 
@@ -109,10 +122,10 @@ class LiveDeliveryChange(AgentMessage):
         return await super().handle(context, responder)
 
 
-class MessageReceived(AgentMessage):
+class MessagesReceived(AgentMessage):
     """MessageReceived acknowledgement message."""
 
-    message_type =  f"{PROTOCOL}/message-received"
+    message_type = f"{PROTOCOL}/messages-received"
     message_tag_list: Set[str]
 
     @staticmethod
@@ -141,38 +154,44 @@ class MessageReceived(AgentMessage):
             remove_message_by_tag_list(queue, key, self.message_tag_list)
 
         await responder.send(
-                Status(message_count=queue.message_count_for_key(key)),
-                reply_to_verkey=key,
-                to_session_only=True,
-            )
+            Status(message_count=queue.message_count_for_key(key)),
+            reply_to_verkey=key,
+            to_session_only=True,
+        )
 
 
-def remove_message_by_tag(queue: DeliveryQueue, recipient_key: str,  tag: str):
-        """Remove a message from a recipient's queue by tag.
-​
-        Tag corresponds to a value in the encrypyed payload which is unique for
-        each message.
-        """
-        return remove_message_by_tag_list(queue, recipient_key, {tag})
+def remove_message_by_tag(queue: DeliveryQueue, recipient_key: str, tag: str):
+    """Remove a message from a recipient's queue by tag.
 
-def remove_message_by_tag_list(queue: DeliveryQueue, 
-                                recipient_key: str, 
-                                tag_list: Set[str]):        
-        if recipient_key not in queue.queue_by_key:
-            return
-        queue.queue_by_key[recipient_key][:] = [
+    Tag corresponds to a value in the encrypyed payload which is unique for
+    each message.
+    """
+    return remove_message_by_tag_list(queue, recipient_key, {tag})
+
+
+def remove_message_by_tag_list(
+    queue: DeliveryQueue, recipient_key: str, tag_list: Set[str]
+):
+    if recipient_key not in queue.queue_by_key:
+        return
+    LOGGER.debug(
+        "Removing messages with tags from queue: %s", queue.queue_by_key[recipient_key]
+    )
+    queue.queue_by_key[recipient_key][:] = [
         queued_message
         for queued_message in queue.queue_by_key[recipient_key]
         if json.loads(queued_message.msg.enc_payload)["tag"] not in tag_list
-        ]
+    ]
 
-def get_one_message_for_key_without_pop(queue: DeliveryQueue, key: str, index: int = 0):
-        """
-        Return a matching message from the queue without removing it.
 
-        Args:
-            key: The key to use for lookup
-            index: The index of the message in the list assigned to the key
-        """
-        if key in queue.queue_by_key:
-            return queue.queue_by_key[key][index].msg
+def get_messages_for_key(queue: DeliveryQueue, key: str) -> List[OutboundMessage]:
+    """
+    Return messages for a given key from the queue without removing them.
+
+    Args:
+        key: The key to use for lookup
+        index: The index of the message in the list assigned to the key
+    """
+    if key in queue.queue_by_key:
+        return [queued.msg for queued in queue.queue_by_key[key]]
+    return []
