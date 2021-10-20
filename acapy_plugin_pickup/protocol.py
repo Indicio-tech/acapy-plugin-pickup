@@ -1,6 +1,7 @@
 """Pickup Protocol."""
 
 import logging
+import json
 from typing import AsyncGenerator, Optional, List, Set, cast
 
 from aries_cloudagent.messaging.request_context import RequestContext
@@ -82,19 +83,19 @@ class DeliveryRequest(AgentMessage):
         if queue.has_message_for_key(key):
             session = self.determine_session(manager, key)
             for _ in range(0, min(self.limit, queue.message_count_for_key(key))):
-                msg = queue.get_one_message_for_key(key)
+                msg = get_one_message_for_key_without_pop(queue, key, _)
                 if not session.accept_response(msg):
                     LOGGER.warning(
                         "Failed to return message to session when we were "
                         "expecting it would work"
                     )
-                    queue.add_message(msg)
+        else:
+            await responder.send(
+                Status(message_count=queue.message_count_for_key(key)),
+                reply_to_verkey=key,
+                to_session_only=True,
+            )
 
-        await responder.send(
-            Status(message_count=queue.message_count_for_key(key)),
-            reply_to_verkey=key,
-            to_session_only=True,
-        )
 
 # This is the start of a message updating the Live Delivery status
 # Will require a deeper analysis of ACA-Py to fully implement
@@ -106,3 +107,72 @@ class LiveDeliveryChange(AgentMessage):
     async def handle(self, context: RequestContext, responder: BaseResponder):
         """Handle LiveDeliveryChange message"""
         return await super().handle(context, responder)
+
+
+class MessageReceived(AgentMessage):
+    """MessageReceived acknowledgement message."""
+
+    message_type =  f"{PROTOCOL}/message-received"
+    message_tag_list: Set[str]
+
+    @staticmethod
+    def determine_session(manager: InboundTransportManager, key: str):
+        """Determine the session associated with the given key."""
+        for session in manager.sessions.values():
+            session = cast(InboundSession, session)
+            if key in session.reply_verkeys:
+                return session
+        return None
+
+    async def handle(self, context: RequestContext, responder: BaseResponder):
+        """Handle MessageReceived message."""
+        if not self.transport or self.transport.return_route != "all":
+            raise HandlerException(
+                "MessageReceived must have transport decorator with return "
+                "route set to all"
+            )
+
+        manager = context.inject(InboundTransportManager)
+        assert manager
+        queue = manager.undelivered_queue
+        key = context.message_receipt.sender_verkey
+
+        if queue.has_message_for_key(key):
+            remove_message_by_tag_list(queue, key, self.message_tag_list)
+
+        await responder.send(
+                Status(message_count=queue.message_count_for_key(key)),
+                reply_to_verkey=key,
+                to_session_only=True,
+            )
+
+
+def remove_message_by_tag(queue: DeliveryQueue, recipient_key: str,  tag: str):
+        """Remove a message from a recipient's queue by tag.
+​
+        Tag corresponds to a value in the encrypyed payload which is unique for
+        each message.
+        """
+        return remove_message_by_tag_list(queue, recipient_key, {tag})
+
+def remove_message_by_tag_list(queue: DeliveryQueue, 
+                                recipient_key: str, 
+                                tag_list: Set[str]):        
+        if recipient_key not in queue.queue_by_key:
+            return
+        queue.queue_by_key[recipient_key][:] = [
+        queued_message
+        for queued_message in queue.queue_by_key[recipient_key]
+        if json.loads(queued_message.msg.enc_payload)["tag"] not in tag_list
+        ]
+
+def get_one_message_for_key_without_pop(queue: DeliveryQueue, key: str, index: int = 0):
+        """
+        Return a matching message from the queue without removing it.
+
+        Args:
+            key: The key to use for lookup
+            index: The index of the message in the list assigned to the key
+        """
+        if key in queue.queue_by_key:
+            return queue.queue_by_key[key][index].msg
