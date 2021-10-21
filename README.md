@@ -49,8 +49,8 @@ prompting the _Message Holder_ to clear messages from the queue.
 
 The `live-delivery-change` message is used to set the state of `live_delivery`. 
 
-When a recipient is actively connected to a message holder (via WebSocket, for
-example), new messages are sent directly to the recipient and will not enter the
+When a _Recipient_ is actively connected to a message holder (via WebSocket, for
+example), new messages are sent directly to the _Recipient_ and will not enter the
 queue.
 - This behavior will be able to be modified by the `live_delivery` attribute, once it is implemented.
 
@@ -76,8 +76,8 @@ Sent by the _Recipient_ to the _Message Holder_ to request a `status` message. E
 ```
 
 `recipient_key` is optional. When specified, only the status related to that
-recipient key is returned. When omitted, the status for all messages queued for
-the recipient is returned.
+`recipient_key` is returned. When omitted, the status for all messages queued for
+the _Recipient_ is returned.
 
 ### Status
 
@@ -99,7 +99,7 @@ Status details about pending messages. Example:
 `message_count` is the only required attribute. The others may be present if
 offered by the _Message Holder_.
 
-`duration waited` is in seconds, and is the longest  delay of any message in the
+`duration_waited` is in seconds, and is the longest  delay of any message in the
 queue.
 
 `total_size` is in bytes.
@@ -110,7 +110,7 @@ message.
 
 Due to the potential for confusing what the actual state of the message queue
 is, a status message MUST NOT be put on the pending message queue and MUST only
-be sent when the recipient is actively connected (HTTP request awaiting
+be sent when the _Recipient_ is actively connected (HTTP request awaiting
 response, WebSocket, etc.).
 
 ### Delivery Request
@@ -126,11 +126,11 @@ A request fromt the _Recipient_ to the _Message Holder_ have waiting messages de
 }
 ```
 
-After receipt of this message, the mediator MUST deliver up to the limit
+After receipt of this message, the _Message Holder_ MUST deliver up to the limit
 indicated, or the total number of messages in the queue for the _Recipient_.
 
 `recipient_key` is optional. When specified, only the messages related to that
-recipient key are returned. When omitted, all messages queued for the _Recipient_
+`recipient_key` are returned. When omitted, all messages queued for the _Recipient_
 are returned.
 
 If no messages are available to be sent, a `status` message MUST be sent immediately. 
@@ -145,14 +145,14 @@ An acknowledgement sent by the _Recipient_ indicating which messages were receiv
 ```
 `message_tag_list` identifies which messages were received. The tag of each message 
 is present in the encrypted form of the message as an artifact of encryption, and is 
-indexed by the mediator. Tags are unique in the scope of a _Recipient_, and are sufficient 
+indexed by the _Message Holderr_. Tags are unique in the scope of a _Recipient_, and are sufficient 
 to uniquely identify messages.
 
-Upon receipt of this message, the _Mediator_ knows that the messages have been received and can 
-confidently remove them from the list of queued messages. The _Mediator_ SHOULD send an updated 
+Upon receipt of this message, the _Message Holder_ knows that the messages have been received and can 
+confidently remove them from the list of queued messages. The _Message Holder_ SHOULD send an updated 
 `status` message reflecting changes to the queue.
 
-The _Mediator_ MUST NOT delete messages from the queue until it receives a `messages-received` ack, 
+The _Message Holder_ MUST NOT delete messages from the queue until it receives a `messages-received` ackowledgement, 
 indicating which messages are safe to delete. 
 
 ### Multiple Recipients
