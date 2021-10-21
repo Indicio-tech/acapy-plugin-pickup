@@ -190,7 +190,6 @@ def get_messages_for_key(queue: DeliveryQueue, key: str) -> List[OutboundMessage
 
     Args:
         key: The key to use for lookup
-        index: The index of the message in the list assigned to the key
     """
     if key in queue.queue_by_key:
         return [queued.msg for queued in queue.queue_by_key[key]]
