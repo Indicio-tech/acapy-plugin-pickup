@@ -126,8 +126,13 @@ A request fromt the _Recipient_ to the _Message Holder_ have waiting messages de
 }
 ```
 
-After receipt of this message, the _Message Holder_ MUST deliver up to the limit
+After receipt of this message, the _Message Holder_ SHOULD deliver up to the limit
 indicated, or the total number of messages in the queue for the _Recipient_.
+
+> Note: While `limit` is a required attribute, if the connection is over HTTP, only 1 message 
+> is able to be sent from the queue at a time. Connection over WebSocket, etc. allows for 
+> multiple messages to be delivered from the queue at a time. Setting the `limit`, then,
+> requires some knowledge of the connection in order for expected behavior to match implemented behavior.
 
 `recipient_key` is optional. When specified, only the messages related to that
 `recipient_key` are returned. When omitted, all messages queued for the _Recipient_
