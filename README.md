@@ -150,7 +150,7 @@ An acknowledgement sent by the _Recipient_ indicating which messages were receiv
 ```
 `message_tag_list` identifies which messages were received. The tag of each message 
 is present in the encrypted form of the message as an artifact of encryption, and is 
-indexed by the _Message Holderr_. Tags are unique in the scope of a _Recipient_, and are sufficient 
+indexed by the _Message Holder_. Tags are unique in the scope of a _Recipient_, and are sufficient 
 to uniquely identify messages.
 
 Upon receipt of this message, the _Message Holder_ knows that the messages have been received and can 
