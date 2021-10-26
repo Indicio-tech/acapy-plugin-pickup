@@ -116,12 +116,14 @@ class DeliveryRequest(AgentMessage):
                         )
                     if returned_count >= self.limit:
                         break
-        else:
-            await responder.send(
-                Status(message_count=queue.message_count_for_key(key)),
-                reply_to_verkey=key,
-                to_session_only=True,
-            )
+            return
+        
+        count = manager.undelivered_queue.message_count_for_key(
+            context.message_receipt.sender_verkey
+        )
+        response = Status(message_count=count)
+        response.assign_thread_from(self)
+        await responder.send_reply(response)
 
 
 # This is the start of a message updating the Live Delivery status
