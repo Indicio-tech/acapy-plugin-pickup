@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "acapy-plugin-pickup-int-tests"
+version = "0.1.0"
+description = "Integration tests for ACA-Py Pickup Protocol Plugin"
+authors = ["Micah Peltier <micah6_8@yahoo.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pytest = "^6.2.5"
+pytest-asyncio = "^0.16.0"
+echo-agent = {git = "https://github.com/Indicio-tech/echo-agent.git", rev = "main", extras = ["client"]}
+
+[tool.poetry.dev-dependencies]
+black = "^21.9b0"
+flake8 = "^4.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
