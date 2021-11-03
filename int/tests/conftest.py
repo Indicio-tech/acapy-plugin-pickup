@@ -3,12 +3,17 @@
 import asyncio
 import pytest
 from typing import Union
+import httpx
 
 from acapy_client.models import ConnectionStaticResult
 from acapy_client.models.conn_record import ConnRecord
 
 from aries_staticagent import StaticConnection, Target
 from aries_staticagent.message import Message
+
+from echo_agent_client import Client as EchoClient
+from echo_agent_client.models import Connection as EchoConnection
+from echo_agent_client.api.default import retrieve_messages
 
 
 class IntegrationTestConnection(StaticConnection):
@@ -28,6 +33,29 @@ class IntegrationTestConnection(StaticConnection):
             anoncrypt=anoncrypt,
             timeout=timeout,
         )
+
+
+@pytest.fixture(scope="session")
+def asynchronously_received_messages(
+    echo_client: EchoClient, echo_connection: EchoConnection
+):
+    """Get asynchronously recevied messages from the echo agent."""
+    # Could wipe left over messages here
+    async def _asynchronously_received_messages(timeout: int = 5):
+        timed_client = echo_client.with_timeout(timeout)
+        try:
+            messages = await retrieve_messages.asyncio(
+                client=timed_client, connection_id=echo_connection.connection_id
+            )
+        except httpx.ReadTimeout:
+            raise Exception(
+                "Retrieving asynchronously recevied messages timed out"
+            ) from None
+
+        return messages
+
+    yield _asynchronously_received_messages
+    # Could wipe remaining messages here
 
 @pytest.fixture(scope="session")
 def connection_id(conn_record: ConnRecord):
