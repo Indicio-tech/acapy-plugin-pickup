@@ -5,11 +5,11 @@ version: '0.1.0'
 
 services:
   #*******************************************************************
-  # acapy_plugin_pickup_agent: acapy agent loaded with pickup plugin *
+  # acapy_pickup: acapy agent loaded with pickup plugin              *
   # for testing                                                      *
   #*******************************************************************
 
-  acapy_plugin_pickup_agent:
+  acapy_pickup:
     image: acapy-plugin-pickup
     build:
       context: ../
@@ -18,11 +18,9 @@ services:
       ACAPY_TOOLBOX_LOG_LEVEL: DEBUG
     ports:
       - "3001:3001"
-    command: start -it http 0.0.0.0 3000 -ot http -e http://acapy_plugin_pickup_agent:3000 --admin 0.0.0.0 3001 --admin-insecure-mode --plugin acapy_plugin_pickup --no-ledger
+    command: start -it http 0.0.0.0 3000 -ot http -e http://acapy_pickup:3000 --admin 0.0.0.0 3001 --admin-insecure-mode --plugin acapy_plugin_pickup --no-ledger
   echo:
     image: dbluhm/echo-agent:latest
-    # build:
-    #   context: ./echo-agent/
     ports:
       - "3002:3002"
     command: uvicorn echo_agent:app --host 0.0.0.0 --port 3002 --log-level debug
@@ -39,16 +37,16 @@ services:
       dockerfile: ./Dockerfile.test.runner
     environment:
       - WAIT_BEFORE_HOSTS=3
-      - WAIT_HOSTS=acapy_plugin_pickup_agent:3000,echo:3002
+      - WAIT_HOSTS=acapy_pickup:3000,echo:3002
       - WAIT_HOSTS_TIMEOUT=60
       - WAIT_SLEEP_INTERVAL=1
       - WAIT_HOST_CONNECT_TIMEOUT=30
-      - AGENT_HOST=acapy_plugin_pickup_agent
+      - AGENT_HOST=acapy_pickup
       - AGENT_PORT=3000
       - AGENT_BACKCHANNEL_PORT=3001
       - SUITE_ENDPOINT=http://echo:3002/receive
       - SUITE_HOST=echo
       - SUITE_PORT=3002
     depends_on:
-      - acapy_plugin_pickup_agent
+      - acapy_pickup
       - echo
