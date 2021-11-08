@@ -31,7 +31,13 @@ class StatusRequest(AgentMessage):
     recipient_key: Optional[str] = None
 
     async def handle(self, context: RequestContext, responder: BaseResponder):
-        """Handle status request message."""
+        """Handle StatusRequest message."""
+        if not self.transport or self.transport.return_route != "all":
+            raise HandlerException(
+                "StatusRequest must have transport decorator with return "
+                "route set to all"
+            )
+            
         manager = context.inject(InboundTransportManager)
         assert manager
         count = manager.undelivered_queue.message_count_for_key(
