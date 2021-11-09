@@ -1,4 +1,4 @@
-version: '0.1.0'
+version: "3"
 #*********************************************************************
 # integration level test agents                                      *
 #*********************************************************************
@@ -18,7 +18,7 @@ services:
       ACAPY_TOOLBOX_LOG_LEVEL: DEBUG
     ports:
       - "3001:3001"
-    command: start -it http 0.0.0.0 3000 -ot http -e http://acapy_pickup:3000 --admin 0.0.0.0 3001 --admin-insecure-mode --plugin acapy_plugin_pickup --no-ledger
+    command: start -it http 0.0.0.0 3000 -ot http -e http://acapy_pickup:3000 --admin 0.0.0.0 3001 --admin-insecure-mode --plugin acapy_plugin_pickup --no-ledger --log-level debug --enable-undelivered-queue
   echo:
     image: dbluhm/echo-agent:latest
     ports:
@@ -41,12 +41,9 @@ services:
       - WAIT_HOSTS_TIMEOUT=60
       - WAIT_SLEEP_INTERVAL=1
       - WAIT_HOST_CONNECT_TIMEOUT=30
-      - AGENT_HOST=acapy_pickup
-      - AGENT_PORT=3000
-      - AGENT_BACKCHANNEL_PORT=3001
-      - SUITE_ENDPOINT=http://echo:3002/receive
-      - SUITE_HOST=echo
-      - SUITE_PORT=3002
+      - AGENT_ENDPOINT=http://acapy_pickup:3000
+      - ADMIN_ENDPOINT=http://acapy_pickup:3001
+      - ECHO_ENDPOINT=http://echo:3002
     depends_on:
       - acapy_pickup
       - echo
