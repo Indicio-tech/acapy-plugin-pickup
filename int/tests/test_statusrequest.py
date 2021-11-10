@@ -1,38 +1,85 @@
 """Status Request and response tests"""
 
-import asyncio
 from echo_agent.client import EchoClient
+from echo_agent.models import ConnectionInfo
 import pytest
-from acapy_client import Client
 
 import logging
 LOGGER = logging.getLogger(__name__)
 
 @pytest.mark.asyncio
-def test_statusrequest():
+async def test_status_request_empty_queue(
+    echo: EchoClient, connection: ConnectionInfo
+    ):
+    """Testing the Status Request Message with no queued messages."""
 
-    assert True
+    await echo.send_message(
+        connection,
+        {
+            "@type": "https://didcomm.org/messagepickup/2.0/status-request",
+            "~transport": {
+                "return_route": "all"
+            }
+        }
+    )
+    status = await echo.get_message(connection)
+    assert (
+        status["@type"]
+        == "https://didcomm.org/messagepickup/2.0/status"
+    )
 
 
 @pytest.mark.asyncio
-async def test_send(
-    connection_id: str, echo: EchoClient
+async def test_status_request_with_queue(
+    echo: EchoClient, connection:ConnectionInfo
 ):
-    """Test send message"""
+
+    for _ in range(2):
+        await echo.send_message(
+            connection,
+            {
+                "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping",
+                "response_resquested": True
+            }
+        )
+    
     await echo.send_message(
+        connection,
         {
-            "@type": "https://github.com/hyperledger/aries-toolbox/tree/master/docs/admin-basicmessage/0.1/send",
-            "connection_id": connection_id,
-            "content": "Your hovercraft is full of eels.",
+            "@type": "https://didcomm.org/messagepickup/2.0/status-request",
+            "~transport": {
+                "return_route": "all"
+            }
         }
     )
-    [sent_message, recip_message] = await echo.get_messages()
+    status = await echo.get_message(connection)
     assert (
-        sent_message["@type"]
-        == "https://github.com/hyperledger/aries-toolbox/tree/master/docs/admin-basicmessage/0.1/sent"
+        status["@type"]
+        == "https://didcomm.org/messagepickup/2.0/status"
     )
     assert (
-        recip_message["@type"]
-        == "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message"
+        status["message_count"] == 2
     )
-    assert recip_message["content"] == "Your hovercraft is full of eels."
+
+@pytest.mark.asyncio
+async def test_recipient_key(
+    echo: EchoClient, connection: ConnectionInfo
+):
+    await echo.send_message(
+        connection,
+        {
+            "@type": "https://didcomm.org/messagepickup/2.0/status-request",
+            "~transport": {
+                "return_route": "all"
+            },
+            "recipient_key": "12345678987654321"
+        }
+    )
+    status = await echo.get_message(connection)
+    assert (
+        status["@type"]
+        == "https://didcomm.org/messagepickup/2.0/status"
+    )
+    assert (
+        status["recipient_key"] == "12345678987654321"
+    )
