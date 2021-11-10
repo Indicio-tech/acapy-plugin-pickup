@@ -32,12 +32,18 @@ class StatusRequest(AgentMessage):
 
     async def handle(self, context: RequestContext, responder: BaseResponder):
         """Handle status request message."""
+        if not self.transport or self.transport.return_route != "all":
+            raise HandlerException(
+                "StatusRequest must have transport decorator with return "
+                "route set to all"
+            )
+        recipient_key = self.recipient_key
         manager = context.inject(InboundTransportManager)
         assert manager
         count = manager.undelivered_queue.message_count_for_key(
-            context.message_receipt.sender_verkey
+            recipient_key or context.message_receipt.sender_verkey
         )
-        response = Status(message_count=count)
+        response = Status(message_count=count, recipient_key=recipient_key)
         response.assign_thread_from(self)
         await responder.send_reply(response)
 
