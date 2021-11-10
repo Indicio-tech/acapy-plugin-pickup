@@ -77,7 +77,6 @@ def agent_connection(
             {
                 "my_seed": agent_seed,
                 "their_seed": echo_seed,
-                "their_endpoint": echo_endpoint,
                 "their_label": "test-runner",
             }
         ),
