@@ -5,6 +5,7 @@ import logging
 from typing import Any, ClassVar, Dict, Mapping, Optional
 from uuid import uuid4
 
+from aries_cloudagent.messaging.base_message import BaseMessage
 from aries_cloudagent.messaging.base_handler import BaseHandler
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
@@ -62,12 +63,12 @@ class Transport(BaseModel):
     return_route: Literal["none", "all", "thread"] = "none"
 
 
-class AgentMessage(BaseModel, ABC):
+class AgentMessage(BaseModel, BaseMessage, ABC):
     """AgentMessage Interface Definition."""
 
     message_type: ClassVar[str] = ""
 
-    id: Annotated[str, Field(alias="@id", default_factory=uuid4)]
+    id: Annotated[str, Field(alias="@id", default_factory=lambda: str(uuid4()))]
     type: Annotated[Optional[str], Field(alias="@type")] = None
     thread: Annotated[Optional[Thread], Field(alias="~thread")] = None
     transport: Annotated[Optional[Transport], Field(alias="~transport")] = None
@@ -89,14 +90,23 @@ class AgentMessage(BaseModel, ABC):
             )
         return value
 
+    @property
+    def _id(self):
+        return self.id
+    
+    @property
+    def _thread_id(self) -> Optional[str]:
+        """Return this message's thread id."""
+        return self.thread and self.thread.thid
+    
+    def serialize(self) -> dict:
+        """Serialize an instance of message to dictionary."""
+        return self.dict(exclude_none=True, by_alias=True)
+        
     @classmethod
     def deserialize(cls, value: Mapping[str, Any]) -> "AgentMessage":
         """Deserialize an instance of message."""
         return parse_obj_as(cls, value)
-
-    def serialize(self) -> dict:
-        """Serialize an instance of message to dictionary."""
-        return self.dict(exclude_none=True, by_alias=True)
 
     def assign_thread_from(self, msg: "AgentMessage"):
         """Assign thread info from another message."""
@@ -139,8 +149,3 @@ class AgentMessage(BaseModel, ABC):
     def to_json(self) -> str:
         """Dump to json."""
         return self.json()
-
-    @property
-    def _thread_id(self) -> Optional[str]:
-        """Return this message's thread id."""
-        return self.thread and self.thread.thid

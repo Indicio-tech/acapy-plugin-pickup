@@ -2,7 +2,7 @@
 
 from aries_cloudagent.config.injection_context import InjectionContext
 from aries_cloudagent.core.protocol_registry import ProtocolRegistry
-from .protocol import Status, StatusRequest, DeliveryRequest
+from .protocol import LiveDeliveryChange, MessagesReceived, Status, StatusRequest, DeliveryRequest
 
 
 async def setup(context: InjectionContext):
@@ -14,5 +14,7 @@ async def setup(context: InjectionContext):
             Status.message_type: Status,
             StatusRequest.message_type: StatusRequest,
             DeliveryRequest.message_type: DeliveryRequest,
+            MessagesReceived.message_type: MessagesReceived,
+            LiveDeliveryChange.message_type: LiveDeliveryChange,
         }
     )
