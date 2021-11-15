@@ -1,0 +1,49 @@
+version: "3"
+#*********************************************************************
+# integration level test agents                                      *
+#*********************************************************************
+
+services:
+  #*******************************************************************
+  # acapy_pickup: acapy agent loaded with pickup plugin              *
+  # for testing                                                      *
+  #*******************************************************************
+
+  acapy_pickup:
+    image: acapy-plugin-pickup
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    environment:
+      ACAPY_TOOLBOX_LOG_LEVEL: DEBUG
+    ports:
+      - "3001:3001"
+    command: start -it http 0.0.0.0 3000 -ot http -e http://acapy_pickup:3000 --admin 0.0.0.0 3001 --admin-insecure-mode --plugin acapy_plugin_pickup --no-ledger --log-level debug --enable-undelivered-queue
+  echo:
+    image: dbluhm/echo-agent:latest
+    ports:
+      - "3002:3002"
+    command: uvicorn echo_agent:app --host 0.0.0.0 --port 3002 --log-level debug
+
+  #*******************************************************************
+  # tester: drives tests for acapy_plugin_pickup in a                *
+  # "Juggernaut" fashion!                                            *
+  #*******************************************************************
+
+  tests:
+    container_name: juggernaut
+    build:
+      context: .
+      dockerfile: ./Dockerfile.test.runner
+    environment:
+      - WAIT_BEFORE_HOSTS=3
+      - WAIT_HOSTS=acapy_pickup:3000,echo:3002
+      - WAIT_HOSTS_TIMEOUT=60
+      - WAIT_SLEEP_INTERVAL=1
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+      - AGENT_ENDPOINT=http://acapy_pickup:3000
+      - ADMIN_ENDPOINT=http://acapy_pickup:3001
+      - ECHO_ENDPOINT=http://echo:3002
+    depends_on:
+      - acapy_pickup
+      - echo
