@@ -93,16 +93,16 @@ class AgentMessage(BaseModel, BaseMessage, ABC):
     @property
     def _id(self):
         return self.id
-    
+
     @property
     def _thread_id(self) -> Optional[str]:
         """Return this message's thread id."""
         return self.thread and self.thread.thid
-    
+
     def serialize(self) -> dict:
         """Serialize an instance of message to dictionary."""
         return self.dict(exclude_none=True, by_alias=True)
-        
+
     @classmethod
     def deserialize(cls, value: Mapping[str, Any]) -> "AgentMessage":
         """Deserialize an instance of message."""

@@ -9,7 +9,7 @@ RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/inst
 RUN poetry config virtualenvs.create true; poetry config virtualenvs.in-project true
 
 RUN mkdir acapy_plugin_pickup && touch acapy_plugin_pickup/__init__.py
-COPY README.md setup.py pyproject.toml poetry.lock .
+COPY README.md setup.py pyproject.toml poetry.lock ./
 
 RUN poetry install --no-dev
 USER $user

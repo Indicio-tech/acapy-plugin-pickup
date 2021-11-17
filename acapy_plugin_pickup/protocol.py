@@ -2,13 +2,12 @@
 
 import logging
 import json
-from typing import AsyncGenerator, Optional, List, Set, cast
+from typing import Optional, List, Set, cast
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
 from aries_cloudagent.transport.inbound.delivery_queue import (
     DeliveryQueue,
-    QueuedMessage,
 )
 from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
@@ -102,16 +101,27 @@ class DeliveryRequest(AgentMessage):
             async with context.session() as profile_session:
 
                 for msg in get_messages_for_key(queue, key):
-                    
-                    recipient_key = msg.target_list[0].recipient_keys or context.message_receipt.recipient_verkey
+
+                    recipient_key = (
+                        msg.target_list[0].recipient_keys
+                        or context.message_receipt.recipient_verkey
+                    )
                     routing_keys = msg.target_list[0].routing_keys or []
                     sender_key = msg.target_list[0].sender_key or key
 
-                    # Depending on send_outbound() implementation, there is a race condition with the timestamp
-                    # When ACA-Py is under load, there is a potential for this encryption to not match the actual encryption
-                    # TODO: update ACA-Py to store all messages with an encrypted payload 
-                    msg.enc_payload = await wire_format.encode_message(profile_session, msg.payload, 
-                    recipient_key, routing_keys, sender_key)
+                    # Depending on send_outbound() implementation, there is a
+                    # race condition with the timestamp When ACA-Py is under
+                    # load, there is a potential for this encryption to not
+                    # match the actual encryption
+                    # TODO: update ACA-Py to store all messages with an
+                    # encrypted payload
+                    msg.enc_payload = await wire_format.encode_message(
+                        profile_session,
+                        msg.payload,
+                        recipient_key,
+                        routing_keys,
+                        sender_key,
+                    )
 
                     if session.accept_response(msg):
                         returned_count += 1
@@ -123,7 +133,7 @@ class DeliveryRequest(AgentMessage):
                     if returned_count >= self.limit:
                         break
             return
-        
+
         count = manager.undelivered_queue.message_count_for_key(
             context.message_receipt.sender_verkey
         )
@@ -206,7 +216,8 @@ def remove_message_by_tag_list(
     queue.queue_by_key[recipient_key][:] = [
         queued_message
         for queued_message in queue.queue_by_key[recipient_key]
-        if queued_message.msg.enc_payload is None or json.loads(queued_message.msg.enc_payload)["tag"] not in tag_list
+        if queued_message.msg.enc_payload is None
+        or json.loads(queued_message.msg.enc_payload)["tag"] not in tag_list
     ]
 
 
