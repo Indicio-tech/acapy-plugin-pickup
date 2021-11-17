@@ -65,6 +65,11 @@ def echo_endpoint():
 
 
 @pytest.fixture(scope="session")
+def ws_endpoint():
+    yield os.environ.get("WS_ENDPOINT")
+
+
+@pytest.fixture(scope="session")
 def agent_connection(
     echo_seed, agent_seed, echo_endpoint, backchannel
 ) -> Iterator[ConnectionStaticResult]:

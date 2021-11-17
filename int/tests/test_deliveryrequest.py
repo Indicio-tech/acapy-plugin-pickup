@@ -1,3 +1,4 @@
+import asyncio
 from echo_agent.client import EchoClient
 from echo_agent.models import ConnectionInfo
 import pytest
@@ -54,12 +55,9 @@ async def test_delivery_request_with_queued(
     )
 
 
-@pytest.mark.xfail(
-    reason="Echo Agent only supports single message retrieval", raises=AssertionError
-)
 @pytest.mark.asyncio
 async def test_delivery_request_multi_delivery(
-    echo: EchoClient, connection: ConnectionInfo
+    echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str
 ):
     for _ in range(3):
         await echo.send_message(
@@ -70,20 +68,19 @@ async def test_delivery_request_multi_delivery(
             },
         )
 
-    await echo.send_message(
-        connection,
-        {
-            "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
-            "limit": 3,
-            "~transport": {"return_route": "all"},
-        },
-    )
-
-    response = await echo.get_messages(connection)
-
-    assert len(response) == 3
-    for msg in response:
-        assert (
-            msg["@type"]
-            == "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping_response"
+    async with echo.session(connection, ws_endpoint) as session:
+        await echo.send_message_to_session(
+            session,
+            {
+                "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
+                "limit": 3,
+                "~transport": {"return_route": "all"},
+            },
         )
+
+        for _ in range(3):
+            msg = await echo.get_message(connection, session=session, timeout=1)
+            assert (
+                msg["@type"]
+                == "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping_response"
+            )

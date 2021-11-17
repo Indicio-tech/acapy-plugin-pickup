@@ -18,12 +18,26 @@ services:
       ACAPY_TOOLBOX_LOG_LEVEL: DEBUG
     ports:
       - "3001:3001"
-    command: start -it http 0.0.0.0 3000 -ot http -e http://acapy_pickup:3000 --admin 0.0.0.0 3001 --admin-insecure-mode --plugin acapy_plugin_pickup --no-ledger --log-level debug --enable-undelivered-queue
+    command: >
+      start -it http 0.0.0.0 3000 -it ws 0.0.0.0 3002
+        -ot http
+        -e http://acapy_pickup:3000
+        --admin 0.0.0.0 3001 --admin-insecure-mode
+        --plugin acapy_plugin_pickup
+        --no-ledger
+        --log-level debug
+        --enable-undelivered-queue
+        --wallet-type indy
+        --wallet-name test
+        --wallet-key test
+        --auto-provision
+
   echo:
-    image: dbluhm/echo-agent:latest
+    # Image with session support, replace with latest after merged
+    image: dbluhm/echo-agent:a82900c
     ports:
       - "3002:3002"
-    command: uvicorn echo_agent:app --host 0.0.0.0 --port 3002 --log-level debug
+    command: --host 0.0.0.0 --port 3002 --log-level debug
 
   #*******************************************************************
   # tester: drives tests for acapy_plugin_pickup in a                *
@@ -43,6 +57,7 @@ services:
       - WAIT_HOST_CONNECT_TIMEOUT=30
       - AGENT_ENDPOINT=http://acapy_pickup:3000
       - ADMIN_ENDPOINT=http://acapy_pickup:3001
+      - WS_ENDPOINT=http://acapy_pickup:3002
       - ECHO_ENDPOINT=http://echo:3002
     depends_on:
       - acapy_pickup
