@@ -11,7 +11,7 @@ RUN poetry config virtualenvs.create true; poetry config virtualenvs.in-project 
 RUN mkdir acapy_plugin_pickup && touch acapy_plugin_pickup/__init__.py
 COPY README.md setup.py pyproject.toml poetry.lock ./
 
-RUN poetry install --no-dev
+RUN poetry install --no-dev -E indy
 USER $user
 
 # Make site packages location more accessible (for use with volumes)
