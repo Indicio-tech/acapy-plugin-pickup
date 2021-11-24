@@ -4,6 +4,7 @@ from echo_agent.models import ConnectionInfo
 import pytest
 
 import logging
+from time import sleep
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ async def test_delivery_request_with_queued(
         },
     )
 
+    # This message needs to wait for the queue processing of the EchoClient,
+    # or else a Status message is sent in response instead of the expected ping-response
+    sleep(2)
     await echo.send_message(
         connection,
         {
