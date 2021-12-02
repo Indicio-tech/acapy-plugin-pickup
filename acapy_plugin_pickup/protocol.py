@@ -142,12 +142,21 @@ class DeliveryRequest(AgentMessage):
         await responder.send_reply(response)
 
 
+class Messages(AgentMessage):
+    """Message wrapper for sending messages to a recipient."""
+
+    message_type = f"{PROTOCOL}/messages"
+
+    recipient_key: Optional[str] = None
+
+
 # This is the start of a message updating the Live Delivery status
 # Will require a deeper analysis of ACA-Py to fully implement
 class LiveDeliveryChange(AgentMessage):
     """Live Delivery Change message."""
 
     message_type = f"{PROTOCOL}/live-delivery-change"
+
     live_delivery: bool = False
 
     async def handle(self, context: RequestContext, responder: BaseResponder):
