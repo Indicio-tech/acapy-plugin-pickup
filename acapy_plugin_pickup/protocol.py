@@ -2,8 +2,9 @@
 
 import logging
 import json
-from typing import Optional, List, Set, cast
-from marshmallow import fields
+from typing import Optional, List, Sequence, Set, cast
+from typing_extensions import Annotated
+from pydantic import Field
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
@@ -14,12 +15,8 @@ from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
-from aries_cloudagent.messaging.decorators.attach_decorator import (
-    AttachDecoratorSchema,
-    AttachDecorator,
-)
 
-from .acapy import AgentMessage
+from .acapy import AgentMessage, Attach
 from .acapy.error import HandlerException
 from .valid import ISODateTime
 
@@ -122,13 +119,13 @@ class DeliveryRequest(AgentMessage):
                     # TODO: update ACA-Py to store all messages with an
                     # encrypted payload
 
-                    # msg.enc_payload = await wire_format.encode_message(
-                    #     profile_session,
-                    #     msg.payload,
-                    #     recipient_key,
-                    #     routing_keys,
-                    #     sender_key,
-                    # )
+                    msg.enc_payload = await wire_format.encode_message(
+                        profile_session,
+                        msg.payload,
+                        recipient_key,
+                        routing_keys,
+                        sender_key,
+                    )
 
                     # if session.accept_response(msg):
                     #     returned_count += 1
@@ -138,7 +135,7 @@ class DeliveryRequest(AgentMessage):
                     #         "expecting it would work"
                     #     )
 
-                    attached_msg = AttachDecorator.data_base64(mapping=msg)
+                    attached_msg = Attach.data_base64(value=msg.enc_payload)
                     message_list.append(attached_msg)
 
                     if returned_count >= self.limit:
@@ -163,13 +160,9 @@ class Delivery(AgentMessage):
     message_type = f"{PROTOCOL}/delivery"
 
     recipient_key: Optional[str] = None
-    message_attachments = fields.Nested(
-        AttachDecoratorSchema,
-        required=True,
-        many=True,
-        data_key="~attach",
-        description="Message attachments",
-    )
+    message_attachments: Annotated[
+        Sequence[Attach], Field(description="Attached messages", alias="~attach")
+    ]
 
 
 # This is the start of a message updating the Live Delivery status
