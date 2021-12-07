@@ -3,6 +3,7 @@
 import logging
 import json
 from typing import Optional, List, Set, cast
+from marshmallow import fields
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
@@ -13,6 +14,10 @@ from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
+from aries_cloudagent.messaging.decorators.attach_decorator import (
+    AttachDecoratorSchema,
+    AttachDecorator,
+)
 
 from .acapy import AgentMessage
 from .acapy.error import HandlerException
@@ -90,6 +95,7 @@ class DeliveryRequest(AgentMessage):
         assert manager
         queue = manager.undelivered_queue
         key = context.message_receipt.sender_verkey
+        message_list = []
 
         if queue.has_message_for_key(key):
             session = self.determine_session(manager, key)
@@ -110,44 +116,60 @@ class DeliveryRequest(AgentMessage):
                     sender_key = msg.target_list[0].sender_key or key
 
                     # Depending on send_outbound() implementation, there is a
-                    # race condition with the timestamp When ACA-Py is under
+                    # race condition with the timestamp. When ACA-Py is under
                     # load, there is a potential for this encryption to not
                     # match the actual encryption
                     # TODO: update ACA-Py to store all messages with an
                     # encrypted payload
-                    msg.enc_payload = await wire_format.encode_message(
-                        profile_session,
-                        msg.payload,
-                        recipient_key,
-                        routing_keys,
-                        sender_key,
-                    )
 
-                    if session.accept_response(msg):
-                        returned_count += 1
-                    else:
-                        LOGGER.warning(
-                            "Failed to return message to session when we were "
-                            "expecting it would work"
-                        )
+                    # msg.enc_payload = await wire_format.encode_message(
+                    #     profile_session,
+                    #     msg.payload,
+                    #     recipient_key,
+                    #     routing_keys,
+                    #     sender_key,
+                    # )
+
+                    # if session.accept_response(msg):
+                    #     returned_count += 1
+                    # else:
+                    #     LOGGER.warning(
+                    #         "Failed to return message to session when we were "
+                    #         "expecting it would work"
+                    #     )
+
+                    attached_msg = AttachDecorator.data_base64(mapping=msg)
+                    message_list.append(attached_msg)
+
                     if returned_count >= self.limit:
                         break
             return
 
-        count = manager.undelivered_queue.message_count_for_key(
-            context.message_receipt.sender_verkey
-        )
-        response = Status(message_count=count)
+        # count = manager.undelivered_queue.message_count_for_key(
+        #     context.message_receipt.sender_verkey
+        # )
+        # response = Status(message_count=count)
+        # response.assign_thread_from(self)
+        # await responder.send_reply(response)
+
+        response = Delivery(message_attachments=message_list)
         response.assign_thread_from(self)
         await responder.send_reply(response)
 
 
-class Messages(AgentMessage):
-    """Message wrapper for sending messages to a recipient."""
+class Delivery(AgentMessage):
+    """Message wrapper for delivering messages to a recipient."""
 
-    message_type = f"{PROTOCOL}/messages"
+    message_type = f"{PROTOCOL}/delivery"
 
     recipient_key: Optional[str] = None
+    message_attachments = fields.Nested(
+        AttachDecoratorSchema,
+        required=True,
+        many=True,
+        data_key="~attach",
+        description="Message attachments",
+    )
 
 
 # This is the start of a message updating the Live Delivery status
@@ -168,7 +190,7 @@ class MessagesReceived(AgentMessage):
     """MessageReceived acknowledgement message."""
 
     message_type = f"{PROTOCOL}/messages-received"
-    message_tag_list: Set[str]
+    message_id_list: Set[str]
 
     @staticmethod
     def determine_session(manager: InboundTransportManager, key: str):
@@ -193,7 +215,7 @@ class MessagesReceived(AgentMessage):
         key = context.message_receipt.sender_verkey
 
         if queue.has_message_for_key(key):
-            remove_message_by_tag_list(queue, key, self.message_tag_list)
+            remove_message_by_tag_list(queue, key, self.message_id_list)
 
         response = Status(message_count=queue.message_count_for_key(key))
         response.assign_thread_from(self)
