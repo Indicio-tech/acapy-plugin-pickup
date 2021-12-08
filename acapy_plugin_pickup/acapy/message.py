@@ -15,7 +15,7 @@ from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
 from aries_cloudagent.wallet.util import bytes_to_b64
 from pydantic import BaseModel, Field, parse_obj_as
-from pydantic.class_validators import validator
+from pydantic.class_validators import validator, root_validator
 from pydantic.types import StrictInt
 
 from acapy_plugin_pickup.valid import ISODateTime
@@ -25,7 +25,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 class AttachData(BaseModel):
-    pass
+    @root_validator(pre=True)
+    @classmethod
+    def _mutual_exclusion_validate(cls, values):
+        if len(set(values.keys()) & {"base64", "json", "links"}) != 1:
+            raise ValueError("AttachData: choose exactly one of base64, json, or links")
+
+    base64_ = Annotated[Optional[str], Field(description="Base64-encoded data")]
+    json_ = Annotated[Optional[dict], Field(description="JSON-serialized data")]
+    links_ = Annotated[
+        Optional[str], Field(description="List of hypertext links to data")
+    ]
 
 
 class Attach(BaseModel):
