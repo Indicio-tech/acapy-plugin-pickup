@@ -25,27 +25,36 @@ LOGGER = logging.getLogger(__name__)
 
 
 class AttachData(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
+    base64: Annotated[Optional[str], Field(description="Base64-encoded data")] = None
+    json_: Annotated[
+        Optional[dict], Field(description="JSON-serialized data", alias="json")
+    ] = None
+    links: Annotated[
+        Optional[str], Field(description="List of hypertext links to data")
+    ] = None
+
     @root_validator(pre=True)
     @classmethod
     def _mutual_exclusion_validate(cls, values):
-        if len(set(values.keys()) & {"base64", "json", "links"}) != 1:
+        if len(set(values.keys()) & {"base64", "json", "links", "json_"}) != 1:
             raise ValueError("AttachData: choose exactly one of base64, json, or links")
-
-    base64_ = Annotated[Optional[str], Field(description="Base64-encoded data")]
-    json_ = Annotated[Optional[dict], Field(description="JSON-serialized data")]
-    links_ = Annotated[
-        Optional[str], Field(description="List of hypertext links to data")
-    ]
+        return values
 
 
 class Attach(BaseModel):
     ident: Annotated[str, Field(alias="@id")]
     mime_type: Annotated[str, Field(alias="mime-type")]
-    filename: str
+    filename: Optional[str] = None
     byte_count: Optional[StrictInt] = None
     lastmod_time: Optional[datetime]
     description: Optional[str]
     data: AttachData
+
+    class Config:
+        allow_population_by_field_name = True
 
     @classmethod
     def data_base64(
@@ -78,14 +87,16 @@ class Attach(BaseModel):
         if isinstance(value, str):
             value = value.encode()
 
-        return Attach(
+        attach_data = AttachData(base64=bytes_to_b64(value))
+
+        return cls(
             ident=ident or str(uuid.uuid4()),
             description=description,
             filename=filename,
             mime_type="application/json",
             lastmod_time=lastmod_time,
             byte_count=byte_count,
-            data=AttachData(base64_=bytes_to_b64(value)),
+            data=attach_data,
         )
 
 
