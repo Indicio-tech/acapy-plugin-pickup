@@ -92,7 +92,7 @@ class DeliveryRequest(AgentMessage):
         assert manager
         queue = manager.undelivered_queue
         key = context.message_receipt.sender_verkey
-        message_list = []
+        message_attachments = []
 
         if queue.has_message_for_key(key):
             session = self.determine_session(manager, key)
@@ -127,35 +127,25 @@ class DeliveryRequest(AgentMessage):
                         sender_key,
                     )
 
-                    # if session.accept_response(msg):
-                    #     returned_count += 1
-                    # else:
-                    #     LOGGER.warning(
-                    #         "Failed to return message to session when we were "
-                    #         "expecting it would work"
-                    #     )
-
-                    attached_msg = Attach.data_base64(value=msg.enc_payload)
-                    message_list.append(attached_msg)
+                    attached_msg = Attach.data_base64(
+                        ident=json.loads(msg.enc_payload)["tag"], value=msg.enc_payload
+                    )
+                    message_attachments.append(attached_msg)
+                    returned_count += 1
 
                     if returned_count >= self.limit:
                         break
-            return
 
-        # count = manager.undelivered_queue.message_count_for_key(
-        #     context.message_receipt.sender_verkey
-        # )
-        # response = Status(message_count=count)
-        # response.assign_thread_from(self)
-        # await responder.send_reply(response)
-
-        response = Delivery(message_attachments=message_list)
+        response = Delivery(message_attachments=message_attachments)
         response.assign_thread_from(self)
         await responder.send_reply(response)
 
 
 class Delivery(AgentMessage):
     """Message wrapper for delivering messages to a recipient."""
+
+    class Config:
+        allow_population_by_field_name = True
 
     message_type = f"{PROTOCOL}/delivery"
 
