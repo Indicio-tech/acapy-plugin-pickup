@@ -136,9 +136,14 @@ class DeliveryRequest(AgentMessage):
                     if returned_count >= self.limit:
                         break
 
-        response = Delivery(message_attachments=message_attachments)
-        response.assign_thread_from(self)
-        await responder.send_reply(response)
+            response = Delivery(message_attachments=message_attachments)
+            response.assign_thread_from(self)
+            await responder.send_reply(response)
+
+        else:
+            response = Status(recipient_key=self.recipient_key, message_count=0)
+            response.assign_thread_from(self)
+            await responder.send_reply(response)
 
 
 class Delivery(AgentMessage):
