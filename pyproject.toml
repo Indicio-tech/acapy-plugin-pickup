@@ -7,7 +7,7 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.9,<4.0"
-aries-cloudagent = "0.7.1"
+aries-cloudagent = "^0.7.2"
 # ACA-Py Optionals
 python3-indy = {version = ">=1.11.1<2", optional = true}
 pydantic = "^1.8.1"
