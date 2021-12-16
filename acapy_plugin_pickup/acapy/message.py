@@ -1,22 +1,103 @@
 """Simple Agent Message class."""
 
 from abc import ABC
+from datetime import datetime
+import json
 import logging
-from typing import Any, ClassVar, Dict, Mapping, Optional
+from typing import Any, ClassVar, Dict, Mapping, Optional, Union
+from typing_extensions import Annotated, Literal
 from uuid import uuid4
+import uuid
 
-from aries_cloudagent.messaging.base_message import BaseMessage
 from aries_cloudagent.messaging.base_handler import BaseHandler
+from aries_cloudagent.messaging.base_message import BaseMessage
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
+from aries_cloudagent.wallet.util import bytes_to_b64
 from pydantic import BaseModel, Field, parse_obj_as
-from pydantic.class_validators import validator
-from typing_extensions import Annotated, Literal
+from pydantic.class_validators import validator, root_validator
+from pydantic.types import StrictInt
 
 from acapy_plugin_pickup.valid import ISODateTime
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class AttachData(BaseModel):
+    class Config:
+        allow_population_by_field_name = True
+
+    base64: Annotated[Optional[str], Field(description="Base64-encoded data")] = None
+    json_: Annotated[
+        Optional[dict], Field(description="JSON-serialized data", alias="json")
+    ] = None
+    links: Annotated[
+        Optional[str], Field(description="List of hypertext links to data")
+    ] = None
+
+    @root_validator(pre=True)
+    @classmethod
+    def _mutual_exclusion_validate(cls, values):
+        if len(set(values.keys()) & {"base64", "json", "links", "json_"}) != 1:
+            raise ValueError("AttachData: choose exactly one of base64, json, or links")
+        return values
+
+
+class Attach(BaseModel):
+    ident: Annotated[str, Field(alias="@id")]
+    mime_type: Annotated[str, Field(alias="mime-type")]
+    filename: Optional[str] = None
+    byte_count: Optional[StrictInt] = None
+    lastmod_time: Optional[datetime]
+    description: Optional[str]
+    data: AttachData
+
+    class Config:
+        allow_population_by_field_name = True
+
+    @classmethod
+    def data_base64(
+        cls,
+        value: Union[Mapping, bytes, str],
+        *,
+        ident: str = None,
+        description: str = None,
+        filename: str = None,
+        lastmod_time: str = None,
+        byte_count: int = None,
+    ):
+        """
+        Create `AttachDecorator` instance on base64-encoded data from input mapping.
+
+        Given mapping, JSON dump, base64-encode, and embed
+        it as data; mark `application/json` MIME type.
+
+        Args:
+            mapping: (dict) data structure; e.g., indy production
+            ident: optional attachment identifier (default random UUID4)
+            description: optional attachment description
+            filename: optional attachment filename
+            lastmod_time: optional attachment last modification time
+            byte_count: optional attachment byte count
+
+        """
+        if isinstance(value, Mapping):
+            value = json.dumps(value).encode()
+        if isinstance(value, str):
+            value = value.encode()
+
+        attach_data = AttachData(base64=bytes_to_b64(value))
+
+        return cls(
+            ident=ident or str(uuid.uuid4()),
+            description=description,
+            filename=filename,
+            mime_type="application/json",
+            lastmod_time=lastmod_time,
+            byte_count=byte_count,
+            data=attach_data,
+        )
 
 
 class Thread(BaseModel):

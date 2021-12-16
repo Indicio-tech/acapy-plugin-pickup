@@ -2,15 +2,14 @@
 
 import asyncio
 import pytest
-from typing import Union, Optional, Iterator
-import httpx
+from typing import Optional, Iterator
 import hashlib
 import os
 
 # TODO: Remove debugging tools before final commit
 import logging
 
-from acapy_client import Client
+from acapy_client.client import Client
 from acapy_client.models import (
     ConnectionStaticResult,
     ConnectionStaticRequest,
@@ -23,11 +22,7 @@ from acapy_client.api.connection import (
     set_metadata,
 )
 
-from aries_staticagent.connection import Connection as StaticConnection
-from aries_staticagent.message import Message
-
 from echo_agent.client import EchoClient
-from echo_agent.models import ConnectionInfo as EchoConnection
 
 
 LOGGER = logging.getLogger(__name__)
