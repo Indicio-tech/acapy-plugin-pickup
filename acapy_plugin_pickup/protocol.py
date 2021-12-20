@@ -180,15 +180,6 @@ class MessagesReceived(AgentMessage):
     message_type = f"{PROTOCOL}/messages-received"
     message_id_list: Set[str]
 
-    @staticmethod
-    def determine_session(manager: InboundTransportManager, key: str):
-        """Determine the session associated with the given key."""
-        for session in manager.sessions.values():
-            session = cast(InboundSession, session)
-            if key in session.reply_verkeys:
-                return session
-        return None
-
     async def handle(self, context: RequestContext, responder: BaseResponder):
         """Handle MessageReceived message."""
         if not self.transport or self.transport.return_route != "all":
