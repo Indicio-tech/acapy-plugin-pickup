@@ -6,7 +6,6 @@ from typing import Optional, Iterator
 import hashlib
 import os
 
-# TODO: Remove debugging tools before final commit
 import logging
 
 from acapy_client.client import Client
