@@ -1,6 +1,5 @@
-from echo_agent.client import EchoClient
-from echo_agent.client import ConnectionInfo
 import pytest
+from echo_agent.client import ConnectionInfo, EchoClient
 
 
 @pytest.mark.asyncio

@@ -1,28 +1,21 @@
 """Common fixtures for testing."""
 
 import asyncio
-import pytest
-from typing import Optional, Iterator
 import hashlib
-import os
-
 import logging
+import os
+from typing import Iterator, Optional
 
+import pytest
+from acapy_client.api.connection import create_static, delete_connection, set_metadata
 from acapy_client.client import Client
 from acapy_client.models import (
-    ConnectionStaticResult,
-    ConnectionStaticRequest,
     ConnectionMetadataSetRequest,
+    ConnectionStaticRequest,
+    ConnectionStaticResult,
 )
 from acapy_client.models.conn_record import ConnRecord
-from acapy_client.api.connection import (
-    create_static,
-    delete_connection,
-    set_metadata,
-)
-
 from echo_agent.client import EchoClient
-
 
 LOGGER = logging.getLogger(__name__)
 
