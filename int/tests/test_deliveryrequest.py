@@ -1,9 +1,8 @@
-import asyncio
+import logging
+
+import pytest
 from echo_agent.client import EchoClient
 from echo_agent.models import ConnectionInfo
-import pytest
-
-import logging
 
 LOGGER = logging.getLogger(__name__)
 

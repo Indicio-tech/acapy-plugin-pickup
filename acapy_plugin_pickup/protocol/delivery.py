@@ -1,65 +1,25 @@
-"""Pickup Protocol."""
+"""Delivery Request and wrapper message for Pickup Protocol."""
 
-import logging
 import json
-from typing import Optional, List, Sequence, Set, cast
-from typing_extensions import Annotated
-from pydantic import Field
+import logging
+from typing import List, Optional, Sequence, Set, cast
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
-from aries_cloudagent.transport.inbound.delivery_queue import (
-    DeliveryQueue,
-)
+from aries_cloudagent.transport.inbound.delivery_queue import DeliveryQueue
 from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
+from pydantic import Field
+from typing_extensions import Annotated
 
-from .acapy import AgentMessage, Attach
-from .acapy.error import HandlerException
-from .valid import ISODateTime
+from ..acapy import AgentMessage, Attach
+from ..acapy.error import HandlerException
+from .status import Status
 
 LOGGER = logging.getLogger(__name__)
 PROTOCOL = "https://didcomm.org/messagepickup/2.0"
-
-
-class StatusRequest(AgentMessage):
-    """StatusRequest message."""
-
-    message_type = f"{PROTOCOL}/status-request"
-
-    recipient_key: Optional[str] = None
-
-    async def handle(self, context: RequestContext, responder: BaseResponder):
-        """Handle status request message."""
-        if not self.transport or self.transport.return_route != "all":
-            raise HandlerException(
-                "StatusRequest must have transport decorator with return "
-                "route set to all"
-            )
-        recipient_key = self.recipient_key
-        manager = context.inject(InboundTransportManager)
-        assert manager
-        count = manager.undelivered_queue.message_count_for_key(
-            recipient_key or context.message_receipt.sender_verkey
-        )
-        response = Status(message_count=count, recipient_key=recipient_key)
-        response.assign_thread_from(self)
-        await responder.send_reply(response)
-
-
-class Status(AgentMessage):
-    """Status message."""
-
-    message_type = f"{PROTOCOL}/status"
-
-    message_count: int
-    recipient_key: Optional[str] = None
-    duration_waited: Optional[int] = None
-    newest_time: Optional[ISODateTime] = None
-    oldest_time: Optional[ISODateTime] = None
-    total_size: Optional[int] = None
 
 
 class DeliveryRequest(AgentMessage):
@@ -158,20 +118,6 @@ class Delivery(AgentMessage):
     message_attachments: Annotated[
         Sequence[Attach], Field(description="Attached messages", alias="~attach")
     ]
-
-
-# This is the start of a message updating the Live Delivery status
-# Will require a deeper analysis of ACA-Py to fully implement
-class LiveDeliveryChange(AgentMessage):
-    """Live Delivery Change message."""
-
-    message_type = f"{PROTOCOL}/live-delivery-change"
-
-    live_delivery: bool = False
-
-    async def handle(self, context: RequestContext, responder: BaseResponder):
-        """Handle LiveDeliveryChange message"""
-        return await super().handle(context, responder)
 
 
 class MessagesReceived(AgentMessage):
