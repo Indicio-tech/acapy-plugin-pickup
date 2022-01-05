@@ -11,7 +11,7 @@ from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
-from pydantic import Field
+from pydantic import Field, validator
 from typing_extensions import Annotated
 
 from ..acapy import AgentMessage, Attach
@@ -105,6 +105,14 @@ class DeliveryRequest(AgentMessage):
             response.assign_thread_from(self)
             await responder.send_reply(response)
 
+    @validator("recipient_key")
+    def _recipient_key(cls, key):
+        """Check the format of the recipient key"""
+        if key:
+            if "did:key:z" not in key:
+                raise ValueError("Recipient Key formatted incorrectly.")
+        return key
+
 
 class Delivery(AgentMessage):
     """Message wrapper for delivering messages to a recipient."""
@@ -118,6 +126,14 @@ class Delivery(AgentMessage):
     message_attachments: Annotated[
         Sequence[Attach], Field(description="Attached messages", alias="~attach")
     ]
+
+    @validator("recipient_key")
+    def _recipient_key(cls, key):
+        """Check the format of the recipient key"""
+        if key:
+            if "did:key:z" not in key:
+                raise ValueError("Recipient Key formatted incorrectly.")
+        return key
 
 
 class MessagesReceived(AgentMessage):

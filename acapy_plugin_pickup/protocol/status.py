@@ -11,6 +11,8 @@ from ..acapy import AgentMessage
 from ..acapy.error import HandlerException
 from ..valid import ISODateTime
 
+from pydantic import validator
+
 LOGGER = logging.getLogger(__name__)
 PROTOCOL = "https://didcomm.org/messagepickup/2.0"
 
@@ -39,6 +41,14 @@ class StatusRequest(AgentMessage):
         response.assign_thread_from(self)
         await responder.send_reply(response)
 
+    @validator("recipient_key")
+    def _recipient_key(cls, key):
+        """Check the format of the recipient key"""
+        if key:
+            if "did:key:z" not in key:
+                raise ValueError("Recipient Key formatted incorrectly.")
+        return key
+
 
 class Status(AgentMessage):
     """Status message."""
@@ -51,3 +61,11 @@ class Status(AgentMessage):
     newest_time: Optional[ISODateTime] = None
     oldest_time: Optional[ISODateTime] = None
     total_size: Optional[int] = None
+
+    @validator("recipient_key")
+    def _recipient_key(cls, key):
+        """Check the format of the recipient key"""
+        if key:
+            if "did:key:z" not in key:
+                raise ValueError("Recipient Key formatted incorrectly.")
+        return key

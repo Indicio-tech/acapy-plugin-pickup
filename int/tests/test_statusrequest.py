@@ -65,9 +65,9 @@ async def test_recipient_key(echo: EchoClient, connection: ConnectionInfo):
         {
             "@type": "https://didcomm.org/messagepickup/2.0/status-request",
             "~transport": {"return_route": "all"},
-            "recipient_key": "12345678987654321",
+            "recipient_key": "did:key:z12345678987654321",
         },
     )
     status = await echo.get_message(connection)
     assert status["@type"] == "https://didcomm.org/messagepickup/2.0/status"
-    assert status["recipient_key"] == "12345678987654321"
+    assert status["recipient_key"] == "did:key:z12345678987654321"
