@@ -14,6 +14,8 @@ from aries_cloudagent.transport.wire_format import BaseWireFormat
 from pydantic import Field
 from typing_extensions import Annotated
 
+from pydantic.class_validators import validator
+
 from ..acapy import AgentMessage, Attach
 from ..acapy.error import HandlerException
 from .status import Status
@@ -104,6 +106,13 @@ class DeliveryRequest(AgentMessage):
             response = Status(recipient_key=self.recipient_key, message_count=0)
             response.assign_thread_from(self)
             await responder.send_reply(response)
+
+    @validator("limit")
+    def _positive_limit_validator(cls, limit):
+        if limit:
+            if limit <= 0:
+                raise ValueError("Limit must be a positive integer.")
+        return limit
 
 
 class Delivery(AgentMessage):
