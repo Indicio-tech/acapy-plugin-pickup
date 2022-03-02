@@ -7,9 +7,9 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.9,<4.0"
-aries-cloudagent = {version = "^0.7.3rc0", extras = ["indy"], allow-prereleases = true}
+aries-cloudagent = { version = "^0.7.3", extras = ["indy"] }
 # ACA-Py Optionals
-python3-indy = {version = ">=1.11.1<2", optional = true}
+python3-indy = { version = ">=1.11.1<2", optional = true }
 pydantic = "^1.8.1"
 typing-extensions = "^3.7.4"
 python-dateutil = "^2.8.1"
