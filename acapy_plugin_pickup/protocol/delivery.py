@@ -126,31 +126,31 @@ class UndeliveredInterface(ABC):
     """Interface for undelivered message queue."""
 
     @abstractmethod
-    def expire_messages(self):
+    async def expire_messages(self):
         """Expire messages that are past the time limit."""
 
     @abstractmethod
-    def add_message(self, msg: OutboundMessage):
+    async def add_message(self, msg: OutboundMessage):
         """Add an OutboundMessage to delivery queue."""
 
     @abstractmethod
-    def has_message_for_key(self, key: str):
+    async def has_message_for_key(self, key: str):
         """Check for queued messages by key."""
 
     @abstractmethod
-    def message_count_for_key(self, key: str):
+    async def message_count_for_key(self, key: str):
         """Count of queued messages by key."""
 
     @abstractmethod
-    def get_one_message_for_key(self, key: str):
+    async def get_one_message_for_key(self, key: str):
         """Remove and return a matching message."""
 
     @abstractmethod
-    def inspect_all_messages_for_key(self, key: str):
+    async def inspect_all_messages_for_key(self, key: str):
         """Return all messages for key."""
 
     @abstractmethod
-    def remove_message_for_key(self, key: str, msg: OutboundMessage):
+    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
         """Remove specified message from queue for key."""
 
 
