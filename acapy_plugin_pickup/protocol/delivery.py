@@ -2,7 +2,6 @@
 
 import json
 import logging
-import time
 from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence, Set, cast
 
@@ -152,6 +151,78 @@ class UndeliveredInterface(ABC):
     @abstractmethod
     async def remove_message_for_key(self, key: str, msg: OutboundMessage):
         """Remove specified message from queue for key."""
+
+
+class InMemoryQueue(UndeliveredInterface):
+    """In-memory undelivered message queue."""
+
+    def __init__(self) -> None:
+        """Initialize instance of InMemoryQueue."""
+
+        self.queue_by_key = {}
+        self.ttl_seconds = 604800  # one week
+
+    async def expire_messages(self, ttl=None):
+        """Expire messages that are past the time limit."""
+
+        ttl_seconds = ttl or self.ttl_seconds
+        horizon = time.time() - ttl_seconds
+        for key in self.queue_by_key.keys():
+            self.queue_by_key[key] = [
+                wm for wm in self.queue_by_key[key] if not wm.older_than(horizon)
+            ]
+
+    async def add_message(self, msg: OutboundMessage):
+        """Add OutboundMessage to undelivered queue."""
+        keys = set()
+        if msg.target:
+            keys.update(msg.target.recipient_keys)
+        if msg.reply_to_verkey:
+            keys.add(msg.reply_to_verkey)
+        wrapped_msg = {"msg": msg, "timestamp": time.time()}
+        for recipient_key in keys:
+            if recipient_key not in self.queue_by_key:
+                self.queue_by_key[recipient_key] = []
+            self.queue_by_key[recipient_key].append(wrapped_msg)
+
+    async def has_message_for_key(self, key: str):
+        """Check for queued messages by key."""
+
+        if key in self.queue_by_key and len(self.queue_by_key[key]):
+            return True
+        return False
+
+    async def message_count_for_key(self, key: str):
+        """Count of queued messages by key."""
+
+        if key in self.queue_by_key:
+            return len(self.queue_by_key[key])
+        else:
+            return 0
+
+    async def get_one_message_for_key(self, key: str):
+        """Remove and return a matching message."""
+
+        if key in self.queue_by_key:
+            return self.queue_by_key[key].pop(0).msg
+
+    async def inspect_all_messages_for_key(self, key: str):
+        """Return all messages for key."""
+
+        if key in self.queue_by_key:
+            for wrapped_msg in self.queue_by_key[key]:
+                yield wrapped_msg.msg
+
+    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
+        """Remove specified message from queue for key."""
+
+        if key in self.queue_by_key:
+            for wrapped_msg in self.queue_by_key[key]:
+                if wrapped_msg.msg == msg:
+                    self.queue_by_key[key].remove(wrapped_msg)
+                    if not self.queue_by_key[key]:
+                        del self.queue_by_key[key]
+                    break  # exit processing loop
 
 
 class MessagesReceived(AgentMessage):
