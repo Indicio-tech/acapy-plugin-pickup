@@ -1,6 +1,7 @@
 """Delivery Request and wrapper message for Pickup Protocol."""
 
 import json
+import time
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence, Set, cast
