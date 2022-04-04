@@ -39,6 +39,26 @@ services:
       - "3002:3002"
     command: --host 0.0.0.0 --port 3002 --log-level debug
 
+  redis:
+    image: "redis:alpine"
+
+    ports:
+     - "6379:6379"
+
+    volumes:
+     - $PWD/redis-data:/var/lib/redis
+      - $PWD/redis.conf:/usr/local/etc/redis/redis.conf
+
+    environment:
+     - REDIS_REPLICATION_MODE=master
+
+    healthcheck:
+      test: nc -z localhost 6379 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   #*******************************************************************
   # tester: drives tests for acapy_plugin_pickup in a                *
   # "Juggernaut" fashion!                                            *
@@ -51,7 +71,7 @@ services:
       dockerfile: ./Dockerfile.test.runner
     environment:
       - WAIT_BEFORE_HOSTS=3
-      - WAIT_HOSTS=acapy_pickup:3000,echo:3002
+      - WAIT_HOSTS=acapy_pickup:3000,echo:3002,redis:6379
       - WAIT_HOSTS_TIMEOUT=60
       - WAIT_SLEEP_INTERVAL=1
       - WAIT_HOST_CONNECT_TIMEOUT=30
@@ -62,3 +82,5 @@ services:
     depends_on:
       - acapy_pickup
       - echo
+      - redis
+      
