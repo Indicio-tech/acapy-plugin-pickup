@@ -3,6 +3,7 @@
 import json
 import time
 import logging
+import aioredis
 from abc import ABC, abstractmethod
 from typing import List, Optional, Sequence, Set, cast
 
@@ -160,7 +161,7 @@ class InMemoryQueue(UndeliveredInterface):
     def __init__(self) -> None:
         """Initialize instance of InMemoryQueue."""
 
-        self.queue_by_key = {}
+        self.queue_by_key = aioredis.Redis(host='localhost', port=6379)
         self.ttl_seconds = 604800  # one week
 
     async def expire_messages(self, ttl=None):
@@ -168,23 +169,22 @@ class InMemoryQueue(UndeliveredInterface):
 
         ttl_seconds = ttl or self.ttl_seconds
         horizon = time.time() - ttl_seconds
-        for key in self.queue_by_key.keys():
-            self.queue_by_key[key] = [
+        for key in self.queue_by_key:
+            self.queue_by_key.get[key] = [
                 wm for wm in self.queue_by_key[key] if not wm.older_than(horizon)
             ]
 
     async def add_message(self, msg: OutboundMessage):
         """Add OutboundMessage to undelivered queue."""
-        keys = set()
         if msg.target:
-            keys.update(msg.target.recipient_keys)
+            self.queue_by_key.sadd(name='keys', values=msg.target.recipient_keys)
         if msg.reply_to_verkey:
-            keys.add(msg.reply_to_verkey)
+            self.queue_by_key.sadd(name='keys', values=msg.reply_to_verkey)
         wrapped_msg = {"msg": msg, "timestamp": time.time()}
-        for recipient_key in keys:
+        for recipient_key in self.queue_by_key.smembers(name='keys'):
             if recipient_key not in self.queue_by_key:
-                self.queue_by_key[recipient_key] = []
-            self.queue_by_key[recipient_key].append(wrapped_msg)
+                self.queue_by_key.get[recipient_key] = []
+            self.queue_by_key.get[recipient_key].sadd(wrapped_msg)
 
     async def has_message_for_key(self, key: str):
         """Check for queued messages by key."""
