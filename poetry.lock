@@ -1018,7 +1018,7 @@ indy = ["python3-indy"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.6.9,<4.0"
-content-hash = "e4c9cb09a7913b6a81b2017af7ac8dbe4b8303c62cc3b0671828d28800b2496e"
+content-hash = "04c660b92bae19a770c2969f0c1dc9f26358a5c8ca3a04db76aa974e15b7556a"
 
 [metadata.files]
 aiohttp = [

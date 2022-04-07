@@ -1,6 +1,7 @@
 """Common fixtures for testing."""
 
 import asyncio
+import aioredis
 import hashlib
 import logging
 import os
@@ -128,3 +129,10 @@ async def connection(
             their_vk=agent_connection.my_verkey,
         )
     yield conn
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def redis_connection():
+    """Yield a connection to the redis server."""
+    # TODO: replace with "REDIS_ENDPOINT" or similar, once that has been added to int/docker-compose.yml
+    yield aioredis.from_url("redis://redis:6379", decode_responses=True)

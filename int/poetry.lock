@@ -19,6 +19,32 @@ reference = "0.7.1"
 resolved_reference = "2ca217e91a4cd42c78f038edf4547e955d893989"
 
 [[package]]
+name = "aioredis"
+version = "2.0.1"
+description = "asyncio (PEP 3156) Redis support"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+async-timeout = "*"
+typing-extensions = "*"
+
+[package.extras]
+hiredis = ["hiredis (>=1.0)"]
+
+[[package]]
+name = "async-timeout"
+version = "4.0.2"
+description = "Timeout context manager for asyncio programs"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+typing-extensions = {version = ">=3.6.5", markers = "python_version < \"3.8\""}
+
+[[package]]
 name = "atomicwrites"
 version = "1.4.0"
 description = "Atomic file writes."
@@ -109,7 +135,7 @@ httpx = {version = "^0.15.4", optional = true}
 
 [package.extras]
 client = ["httpx (>=0.15.4,<0.16.0)"]
-server = ["fastapi (>=0.67.0,<0.68.0)", "aries-staticagent @ git+https://github.com/hyperledger/aries-staticagent-python@b69f667448327febe5d2d8370599d7ffae81ceb2", "aiohttp (>=3.8.0,<4.0.0)"]
+server = ["fastapi (>=0.67.0,<0.68.0)", "aries-staticagent", "aiohttp (>=3.8.0,<4.0.0)"]
 
 [package.source]
 type = "git"
@@ -425,10 +451,18 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "9506a5087cf9307b5bd4c06a1fa43194463ec426cf696d461945e2dd93566071"
+content-hash = "7c8af9023afc2049a2477b2805ad0b139bb1658e61849036b78025e024936d45"
 
 [metadata.files]
 acapy-client = []
+aioredis = [
+    {file = "aioredis-2.0.1-py3-none-any.whl", hash = "sha256:9ac0d0b3b485d293b8ca1987e6de8658d7dafcca1cddfcd1d506cae8cdebfdd6"},
+    {file = "aioredis-2.0.1.tar.gz", hash = "sha256:eaa51aaf993f2d71f54b70527c440437ba65340588afeb786cd87c55c89cd98e"},
+]
+async-timeout = [
+    {file = "async-timeout-4.0.2.tar.gz", hash = "sha256:2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15"},
+    {file = "async_timeout-4.0.2-py3-none-any.whl", hash = "sha256:8ca1e4fcf50d07413d66d1a5e416e42cfdf5851c981d679a09851a6853383b3c"},
+]
 atomicwrites = [
     {file = "atomicwrites-1.4.0-py2.py3-none-any.whl", hash = "sha256:6d1784dea7c0c8d4a5172b6c620f40b6e4cbfdf96d783691f2e1302a7b88e197"},
     {file = "atomicwrites-1.4.0.tar.gz", hash = "sha256:ae70396ad1a434f9c7046fd2dd196fc04b12f9e91ffb859164193be8b6168a7a"},
