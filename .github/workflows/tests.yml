@@ -5,7 +5,8 @@ on:
   pull_request:
 
 env:
-  POETRY_VERSION: 1.1.7
+  POETRY_VERSION: 1.1.11
+  CACHE: 0
 
 jobs:
   test:
@@ -13,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.7, 3.8, 3.9, 3.10]
 
     steps:
     - uses: actions/checkout@v2
@@ -26,7 +27,7 @@ jobs:
       uses: actions/cache@v2
       with:
           path: ~/.local
-          key: poetry-${{ runner.os }}-${{ matrix.python-version }}-${{ env.POETRY_VERSION }}-${{ hashFiles('.github/workflows/code-quality-check.yml') }}
+          key: poetry-${{ runner.os }}-${{ matrix.python-version }}-${{ env.POETRY_VERSION }}-${{ hashFiles('.github/workflows/tests.yml') }}
     - name: Install poetry
       if: steps.cache-poetry.outputs.cache-hit != 'true'
       run: |
@@ -41,7 +42,7 @@ jobs:
       uses: actions/cache@v2
       with:
           path: ${{ steps.setup-poetry-env.outputs.poetry-env }}
-          key: poetry-env-${{ runner.os }}-${{ matrix.python-version }}-${{ env.POETRY_VERSION }}-${{ hashFiles('poetry.lock') }}-${{ hashFiles('.github/workflows/code-quality-check.yml') }}
+          key: poetry-env-${{ runner.os }}-${{ matrix.python-version }}-${{ env.POETRY_VERSION }}-${{ hashFiles('poetry.lock') }}-${{ hashFiles('.github/workflows/tests.yml') }}
     - name: Install dependencies
       if: steps.cache-poetry-venv.outputs.cache-hit != 'true'
       run: |
