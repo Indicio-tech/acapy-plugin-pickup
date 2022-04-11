@@ -1,6 +1,7 @@
 """Delivery Request and wrapper message for Pickup Protocol."""
 
 import json
+from os import name
 import time
 import logging
 import aioredis
@@ -155,13 +156,13 @@ class UndeliveredInterface(ABC):
         """Remove specified message from queue for key."""
 
 
-class InMemoryQueue(UndeliveredInterface):
+class PersistedQueue(UndeliveredInterface):
     """In-memory undelivered message queue."""
 
-    def __init__(self) -> None:
+    async def __init__(self) -> None:
         """Initialize instance of InMemoryQueue."""
 
-        self.queue_by_key = aioredis.Redis(host='localhost', port=6379)
+        self.queue_by_key = await aioredis.from_url("redis://localhost/1")
         self.ttl_seconds = 604800  # one week
 
     async def expire_messages(self, ttl=None):
@@ -169,60 +170,61 @@ class InMemoryQueue(UndeliveredInterface):
 
         ttl_seconds = ttl or self.ttl_seconds
         horizon = time.time() - ttl_seconds
-        for key in self.queue_by_key:
+        for key in self.queue_by_key.smembers():
             self.queue_by_key.get[key] = [
-                wm for wm in self.queue_by_key[key] if not wm.older_than(horizon)
+                wm for wm in self.queue_by_key.get[key] if not wm.older_than(horizon)
             ]
 
     async def add_message(self, msg: OutboundMessage):
         """Add OutboundMessage to undelivered queue."""
+        keys = await aioredis.from_url("redis://localhost/2")
         if msg.target:
-            self.queue_by_key.sadd(name='keys', values=msg.target.recipient_keys)
+            await keys.sadd(name=msg.connection_id, values=msg.target.recipient_keys)
         if msg.reply_to_verkey:
-            self.queue_by_key.sadd(name='keys', values=msg.reply_to_verkey)
+            await keys.sadd(name=msg.connection_id, values=msg.reply_to_verkey)
         wrapped_msg = {"msg": msg, "timestamp": time.time()}
-        for recipient_key in self.queue_by_key.smembers(name='keys'):
-            if recipient_key not in self.queue_by_key:
+        for recipient_key in keys.smembers():
+            if recipient_key not in self.queue_by_key.smembers():
                 self.queue_by_key.get[recipient_key] = []
-            self.queue_by_key.get[recipient_key].sadd(wrapped_msg)
+            self.queue_by_key.get[recipient_key] = wrapped_msg
 
     async def has_message_for_key(self, key: str):
         """Check for queued messages by key."""
 
-        if key in self.queue_by_key and len(self.queue_by_key[key]):
+        if key in self.queue_by_key.smembers() and len(self.queue_by_key.get(key)):
             return True
         return False
 
     async def message_count_for_key(self, key: str):
         """Count of queued messages by key."""
 
-        if key in self.queue_by_key:
-            return len(self.queue_by_key[key])
+        if key in self.queue_by_key.smembers():
+            return len(self.queue_by_key.get(key))
         else:
             return 0
 
     async def get_one_message_for_key(self, key: str):
         """Remove and return a matching message."""
 
-        if key in self.queue_by_key:
-            return self.queue_by_key[key].pop(0).msg
+        if key in self.queue_by_key.smembers():
+            return self.queue_by_key.get(key).pop(0).msg
 
     async def inspect_all_messages_for_key(self, key: str):
         """Return all messages for key."""
 
-        if key in self.queue_by_key:
-            for wrapped_msg in self.queue_by_key[key]:
+        if key in self.queue_by_key.smembers():
+            for wrapped_msg in self.queue_by_key.get(key):
                 yield wrapped_msg.msg
 
     async def remove_message_for_key(self, key: str, msg: OutboundMessage):
         """Remove specified message from queue for key."""
 
-        if key in self.queue_by_key:
-            for wrapped_msg in self.queue_by_key[key]:
+        if key in self.queue_by_key.smembers():
+            for wrapped_msg in self.queue_by_key.get(key):
                 if wrapped_msg.msg == msg:
-                    self.queue_by_key[key].remove(wrapped_msg)
-                    if not self.queue_by_key[key]:
-                        del self.queue_by_key[key]
+                    self.queue_by_key.get(key).spop(wrapped_msg)
+                    if not self.queue_by_key.get(key):
+                        self.queue_by_key.spop(key)
                     break  # exit processing loop
 
 
