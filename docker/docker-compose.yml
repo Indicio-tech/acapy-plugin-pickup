@@ -1,0 +1,30 @@
+version: "3"
+services:
+  tunnel:
+    image: dbluhm/agent-tunnel
+    command: -s reverse-proxy:80 -p 4040 -h ${AGENT_TUNNEL_HOST}
+    ports:
+      - 4040:4040
+  agent:
+    image: acapy-pickup-mediator
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+    volumes:
+      - ./acapy-endpoint.sh:/acapy-endpoint.sh:ro,z
+    environment:
+      TUNNEL_ENDPOINT: http://tunnel:4040
+    entrypoint: >
+      /bin/sh -c '/acapy-endpoint.sh aca-py "$$@"' --
+    command: >
+      start --arg-file default.yml
+  reverse-proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    environment:
+      AGENT_HTTP: "http://agent:3000"
+      AGENT_WS: "http://agent:3002"
+    ports:
+      - 80:80
+    volumes:
+      - ./mediator.conf.template:/etc/nginx/templates/default.conf.template:z

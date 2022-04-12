@@ -1,24 +1,28 @@
-FROM bcgovimages/von-image:py36-1.16-1
+FROM bcgovimages/von-image:py36-1.16-1 AS base
 
+# Install and configure poetry
 USER root
-ENV POETRY_HOME=/opt/poetry \
-    VENV=/usr/src/app/.venv
-ENV PATH="$POETRY_HOME/bin:$VENV/bin:$PATH"
 
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
-RUN poetry config virtualenvs.create true; poetry config virtualenvs.in-project true
+ENV POETRY_VERSION=1.1.11
+ENV POETRY_HOME=/opt/poetry
+RUN curl -sSL https://install.python-poetry.org | python -
 
+ENV PATH="/opt/poetry/bin:$PATH"
+RUN poetry config virtualenvs.in-project true
+
+# Setup project
 RUN mkdir acapy_plugin_pickup && touch acapy_plugin_pickup/__init__.py
-COPY README.md setup.py pyproject.toml poetry.lock ./
-
+COPY pyproject.toml poetry.lock README.md ./
 RUN poetry install --no-dev -E indy
 USER $user
 
-# Make site packages location more accessible (for use with volumes)
-RUN ln -s $(poetry env info -p)/lib/python3.6/site-packages site-packages
+FROM bcgovimages/von-image:py36-1.16-1
+COPY --from=base /home/indy/.venv /home/indy/.venv
+ENV PATH="/home/indy/.venv/bin:$PATH"
+EXPOSE 80
 
 COPY docker/default.yml .
 COPY acapy_plugin_pickup/ acapy_plugin_pickup/
 
-ENTRYPOINT ["/bin/bash", "-c", "poetry run aca-py \"$@\"", "--"]
+ENTRYPOINT ["/bin/bash", "-c", "aca-py \"$@\"", "--"]
 CMD ["start", "--arg-file", "default.yml"]
