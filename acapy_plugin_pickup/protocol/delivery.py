@@ -72,20 +72,20 @@ class DeliveryRequest(AgentMessage):
                     routing_keys = msg.target_list[0].routing_keys or []
                     sender_key = msg.target_list[0].sender_key or key
 
-                    # Depending on send_outbound() implementation, there is a
-                    # race condition with the timestamp. When ACA-Py is under
-                    # load, there is a potential for this encryption to not
-                    # match the actual encryption
+                    # This scenario is rare; a message will almost always have an
+                    # encrypted payload. The only time it won't is if we're sending a
+                    # message from the mediator itself, rather than forwarding a message
+                    # from another agent.
                     # TODO: update ACA-Py to store all messages with an
                     # encrypted payload
-
-                    msg.enc_payload = await wire_format.encode_message(
-                        profile_session,
-                        msg.payload,
-                        recipient_key,
-                        routing_keys,
-                        sender_key,
-                    )
+                    if not msg.enc_payload:
+                        msg.enc_payload = await wire_format.encode_message(
+                            profile_session,
+                            msg.payload,
+                            recipient_key,
+                            routing_keys,
+                            sender_key,
+                        )
 
                     attached_msg = Attach.data_base64(
                         ident=json.loads(msg.enc_payload)["tag"], value=msg.enc_payload
