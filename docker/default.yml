@@ -12,7 +12,7 @@ plugin:
 inbound-transport:
   - [http, 0.0.0.0, 3000]
   - [ws, 0.0.0.0, 3002]
-outbound-transport: ws
+outbound-transport: http
 endpoint:
   - http://localhost:3000
 enable-undelivered-queue: true
