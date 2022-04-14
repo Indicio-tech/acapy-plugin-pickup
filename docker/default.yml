@@ -27,7 +27,8 @@ debug-presentations: true
 auto-accept-invites: true
 auto-accept-requests: true
 connections-invite: true
-log-level: debug
+# Modify for more output:
+log-level: warning
 
 # Accept mediation requests
 open-mediation: true
