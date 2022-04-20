@@ -4,8 +4,6 @@ services:
   redis:
     image: "redis:alpine"
 
-    command: redis-server --requirepass # Custom server pass?
-
     ports:
      - "6379:6379"
 

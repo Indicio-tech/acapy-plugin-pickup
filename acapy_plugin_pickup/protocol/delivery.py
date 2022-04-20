@@ -2,10 +2,11 @@
 
 import json
 from os import name
-import time
 import logging
 import aioredis
 from abc import ABC, abstractmethod
+from hashlib import sha256
+from datetime import timedelta
 from typing import List, Optional, Sequence, Set, cast
 
 from aries_cloudagent.messaging.request_context import RequestContext
@@ -128,10 +129,6 @@ class UndeliveredInterface(ABC):
     """Interface for undelivered message queue."""
 
     @abstractmethod
-    async def expire_messages(self):
-        """Expire messages that are past the time limit."""
-
-    @abstractmethod
     async def add_message(self, msg: OutboundMessage):
         """Add an OutboundMessage to delivery queue."""
 
@@ -157,75 +154,103 @@ class UndeliveredInterface(ABC):
 
 
 class PersistedQueue(UndeliveredInterface):
-    """In-memory undelivered message queue."""
+    """
+    PersistedQueue Class
+    Manages undelivered messages.
+    """
 
-    async def __init__(self) -> None:
-        """Initialize instance of InMemoryQueue."""
+    def __init__(self, redis: aioredis.Redis) -> None:
+        """
+        Initialize an instance of PersistenceQueue.
+        This uses an in memory structure to queue messages,
+        though the active Redis server prevents losing
+        the queue should your machine turn off. 
+        """
 
-        self.queue_by_key = await aioredis.from_url("redis://localhost/1")
+        self.queue_by_key = redis  # Queue of messages and corresponding keys
         self.ttl_seconds = 604800  # one week
+        self.exmessage_seconds = 86400 # three days
+        
+    async def add_message(self, key: str, msg: str):
+        """
+        Add an OutboundMessage to delivery queue.
+        The message is added once per recipient key
+        Args:
+            key: The recipient key of the connected
+            agent
+            msg: The OutboundMessage to add
+        """
 
-    async def expire_messages(self, ttl=None):
-        """Expire messages that are past the time limit."""
+        msg_key = sha256(msg.encode("utf-8")).digest()
 
-        ttl_seconds = ttl or self.ttl_seconds
-        horizon = time.time() - ttl_seconds
-        for key in self.queue_by_key.smembers():
-            self.queue_by_key.get[key] = [
-                wm for wm in self.queue_by_key.get[key] if not wm.older_than(horizon)
-            ]
+        await self.queue_by_key.rpush(key, msg_key)
+        await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
+        await self.queue_by_key.setex(msg_key, timedelta(seconds=self.exmessage_seconds), json.dumps(msg))
 
-    async def add_message(self, msg: OutboundMessage):
-        """Add OutboundMessage to undelivered queue."""
-        keys = await aioredis.from_url("redis://localhost/2")
-        if msg.target:
-            await keys.sadd(name=msg.connection_id, values=msg.target.recipient_keys)
-        if msg.reply_to_verkey:
-            await keys.sadd(name=msg.connection_id, values=msg.reply_to_verkey)
-        wrapped_msg = {"msg": msg, "timestamp": time.time()}
-        for recipient_key in keys.smembers():
-            if recipient_key not in self.queue_by_key.smembers():
-                self.queue_by_key.get[recipient_key] = []
-            self.queue_by_key.get[recipient_key] = wrapped_msg
 
     async def has_message_for_key(self, key: str):
-        """Check for queued messages by key."""
-
-        if key in self.queue_by_key.smembers() and len(self.queue_by_key.get(key)):
+        """
+        Check for queued messages by key.
+        Args:
+            key: The key to use for lookup
+        """
+        msg_key = str(await self.queue_by_key.lrange(key, 0, -1))
+    
+        if await self.queue_by_key.llen(msg_key) is not None:
             return True
         return False
 
     async def message_count_for_key(self, key: str):
-        """Count of queued messages by key."""
-
-        if key in self.queue_by_key.smembers():
-            return len(self.queue_by_key.get(key))
-        else:
-            return 0
+        """
+        Count of queued messages by key.
+        Args:
+            key: The key to use for lookup
+        """
+        length = await self.queue_by_key.llen(key)
+        return length
 
     async def get_one_message_for_key(self, key: str):
-        """Remove and return a matching message."""
+        """
+        Remove and return a matching message.
+        Args:
+            key: The key to use for lookup
+        """
+        msg_key = await self.queue_by_key.lpop(key)
+        msg = None
 
-        if key in self.queue_by_key.smembers():
-            return self.queue_by_key.get(key).pop(0).msg
+        while msg is None and msg_key is not None:
+            msg = await self.queue_by_key.get(msg_key)
+            await self.queue_by_key.delete(msg_key)
+            if msg is None:
+                msg_key = await self.queue_by_key.lpop(key)
+
+        return json.loads(msg)
 
     async def inspect_all_messages_for_key(self, key: str):
-        """Return all messages for key."""
+        """
+        Return all messages for key.
+        Args:
+            key: The key to use for lookup
+        """
+        length = await self.queue_by_key.llen(key)
 
-        if key in self.queue_by_key.smembers():
-            for wrapped_msg in self.queue_by_key.get(key):
-                yield wrapped_msg.msg
+        return await self.queue_by_key.lrange(key, 0, length)
 
-    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
-        """Remove specified message from queue for key."""
 
-        if key in self.queue_by_key.smembers():
-            for wrapped_msg in self.queue_by_key.get(key):
-                if wrapped_msg.msg == msg:
-                    self.queue_by_key.get(key).spop(wrapped_msg)
-                    if not self.queue_by_key.get(key):
-                        self.queue_by_key.spop(key)
-                    break  # exit processing loop
+    async def remove_message_for_key(self, key: str):
+        """
+        Remove specified message from queue for key.
+        Args:
+            key: The key to use for lookup
+            msg: The message to remove from the queue
+        """
+        msg_key = await self.queue_by_key.lpop(key)
+        msg = await self.queue_by_key.get(msg_key)
+        
+        if msg is not None:        
+            await self.queue_by_key.delete(msg_key)
+            return True
+        return False
 
 
 class MessagesReceived(AgentMessage):
