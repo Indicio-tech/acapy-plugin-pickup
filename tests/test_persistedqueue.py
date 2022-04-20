@@ -8,31 +8,33 @@ import pytest
 @pytest.fixture
 def target():
     yield {
-        "did":"some_did",
-        "endpoint":"some_endpoint",
-        "label":"some_label",
-        "recipient_keys":"recipient_keys",
-        "routing_keys":"routing_keys",
-        "sender_key":"some_sender_key"
-        }
+        "did": "some_did",
+        "endpoint": "some_endpoint",
+        "label": "some_label",
+        "recipient_keys": "recipient_keys",
+        "routing_keys": "routing_keys",
+        "sender_key": "some_sender_key",
+    }
+
 
 @pytest.fixture
 def msg(target):
     yield OutboundMessage(
-        connection_id="conn_id", 
+        connection_id="conn_id",
         target=target,
         reply_from_verkey="reply_from_verkey",
-        payload="payload"
-        )
+        payload="payload",
+    )
+
 
 @pytest.mark.asyncio
 async def test_persistedqueue(msg):
     """
     PersistedQueue Test.
 
-    Unit test for the PersistedQueue class in 
+    Unit test for the PersistedQueue class in
     """
-    PQ = PersistedQueue(redis = await aioredis.from_url("redis://localhost/1"))
+    PQ = PersistedQueue(redis=await aioredis.from_url("redis://localhost/1"))
     key = msg.target["recipient_keys"]
 
     await PQ.queue_by_key.flushdb(key)

@@ -77,20 +77,20 @@ class DeliveryRequest(AgentMessage):
                     routing_keys = msg.target_list[0].routing_keys or []
                     sender_key = msg.target_list[0].sender_key or key
 
-                    # Depending on send_outbound() implementation, there is a
-                    # race condition with the timestamp. When ACA-Py is under
-                    # load, there is a potential for this encryption to not
-                    # match the actual encryption
+                    # This scenario is rare; a message will almost always have an
+                    # encrypted payload. The only time it won't is if we're sending a
+                    # message from the mediator itself, rather than forwarding a message
+                    # from another agent.
                     # TODO: update ACA-Py to store all messages with an
                     # encrypted payload
-
-                    msg.enc_payload = await wire_format.encode_message(
-                        profile_session,
-                        msg.payload,
-                        recipient_key,
-                        routing_keys,
-                        sender_key,
-                    )
+                    if not msg.enc_payload:
+                        msg.enc_payload = await wire_format.encode_message(
+                            profile_session,
+                            msg.payload,
+                            recipient_key,
+                            routing_keys,
+                            sender_key,
+                        )
 
                     attached_msg = Attach.data_base64(
                         ident=json.loads(msg.enc_payload)["tag"], value=msg.enc_payload
@@ -164,13 +164,13 @@ class PersistedQueue(UndeliveredInterface):
         Initialize an instance of PersistenceQueue.
         This uses an in memory structure to queue messages,
         though the active Redis server prevents losing
-        the queue should your machine turn off. 
+        the queue should your machine turn off.
         """
 
         self.queue_by_key = redis  # Queue of messages and corresponding keys
         self.ttl_seconds = 604800  # one week
-        self.exmessage_seconds = 86400 # three days
-        
+        self.exmessage_seconds = 86400  # three days
+
     async def add_message(self, key: str, msg: str):
         """
         Add an OutboundMessage to delivery queue.
@@ -185,8 +185,9 @@ class PersistedQueue(UndeliveredInterface):
 
         await self.queue_by_key.rpush(key, msg_key)
         await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
-        await self.queue_by_key.setex(msg_key, timedelta(seconds=self.exmessage_seconds), json.dumps(msg))
-
+        await self.queue_by_key.setex(
+            msg_key, timedelta(seconds=self.exmessage_seconds), json.dumps(msg)
+        )
 
     async def has_message_for_key(self, key: str):
         """
@@ -195,7 +196,7 @@ class PersistedQueue(UndeliveredInterface):
             key: The key to use for lookup
         """
         msg_key = str(await self.queue_by_key.lrange(key, 0, -1))
-    
+
         if await self.queue_by_key.llen(msg_key) is not None:
             return True
         return False
@@ -236,7 +237,6 @@ class PersistedQueue(UndeliveredInterface):
 
         return await self.queue_by_key.lrange(key, 0, length)
 
-
     async def remove_message_for_key(self, key: str):
         """
         Remove specified message from queue for key.
@@ -246,8 +246,8 @@ class PersistedQueue(UndeliveredInterface):
         """
         msg_key = await self.queue_by_key.lpop(key)
         msg = await self.queue_by_key.get(msg_key)
-        
-        if msg is not None:        
+
+        if msg is not None:
             await self.queue_by_key.delete(msg_key)
             return True
         return False
