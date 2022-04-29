@@ -8,6 +8,7 @@ from aries_cloudagent.messaging.responder import BaseResponder, MockResponder
 from asynctest import mock
 from aries_cloudagent.transport.inbound.delivery_queue import DeliveryQueue
 from aries_cloudagent.transport.inbound.manager import InboundTransportManager
+from aries_cloudagent.transport.inbound.receipt import MessageReceipt
 
 
 @pytest.fixture
@@ -43,15 +44,18 @@ def profile(event_bus, mock_responder):
 
 
 @pytest.fixture
-def undelivered_queue():
-    yield DeliveryQueue()
+def manager():
+    manager = InboundTransportManager()
+    manager.undelivered_queue = DeliveryQueue()
+    yield manager
 
 
 @pytest.fixture
-def context(profile, mock_admin_connection, undelivered_queue):
+def context(profile, mock_admin_connection):
     """RequestContext fixture."""
     context = RequestContext(profile)
     context.connection_record = mock_admin_connection
     context.connection_ready = True
-    context.inject = mock.CoroutineMock(spec=InboundTransportManager, autospec=True)
+    context.inject = mock.MagicMock(spec=InboundTransportManager)
+    context.message_receipt = mock.CoroutineMock(spec=MessageReceipt)
     yield context

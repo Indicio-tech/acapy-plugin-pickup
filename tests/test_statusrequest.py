@@ -19,6 +19,4 @@ async def test_status_request(context, mock_responder):
         AgentMessage, "assign_thread_from", mock.CoroutineMock()
     ):
 
-        # mock_return_route.return_value = "all"
-
         await handler.handle(context, mock_responder)
