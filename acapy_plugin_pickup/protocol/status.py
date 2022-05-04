@@ -51,3 +51,4 @@ class Status(AgentMessage):
     newest_time: Optional[ISODateTime] = None
     oldest_time: Optional[ISODateTime] = None
     total_size: Optional[int] = None
+    live_mode: Optional[bool] = None
