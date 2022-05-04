@@ -3,10 +3,10 @@ Running ACA-Py with the acapy-plugin-pickup Plugin
 
 ## Quickstart
 
-To build the container:
+To build the container, from the `docker` folder run:
 
 ```sh
-$ docker build --tag acapy-plugin-pickup .
+$ docker build -f ./Dockerfile --tag acapy-plugin-pickup ..
 ```
 
 To start an agent using the default configuration:
