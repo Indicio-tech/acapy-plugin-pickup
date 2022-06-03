@@ -11,6 +11,7 @@ plugin:
 # Transport
 inbound-transport:
   - [http, 0.0.0.0, 3000]
+  - [ws, 0.0.0.0, 3002]
 outbound-transport: http
 endpoint:
   - http://localhost:3000
@@ -26,7 +27,8 @@ debug-presentations: true
 auto-accept-invites: true
 auto-accept-requests: true
 connections-invite: true
-log-level: debug
+# Modify for more output:
+log-level: warning
 
 # Accept mediation requests
 open-mediation: true

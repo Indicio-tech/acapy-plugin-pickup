@@ -2,86 +2,68 @@
 
 ## Protocol Defintion
 
-This protocol will hopefully be finalized and submitted as an Aries RFC.
-However, in advance of that submission, and due to this protocol differing from
-the currently defined pickup protocol, the following is the full definition of
-this pickup protocol as implemented in this plugin:
-
-# 0212: Pickup Protocol 2.0
-
-- Authors: [Sam Curren](telegramsam@gmail.com), [Daniel Bluhm](dbluhm@pm.me), James Ebert
-- Status: [PROPOSED](/README.md#proposed)
-- Since: 2019-09-03
-- Status Note: Revised
-- Start Date: 2020-12-22
-- Tags: [feature](/tags.md#feature), [protocol](/tags.md#protocol)
+This protocol is an implementation of [RFC 0685](https://github.com/hyperledger/aries-rfcs/tree/main/features/0685-pickup-v2).
+Said RFC contains the entirety of the specification, but for ease of use, much of the RFC has been added here to document this implementation. For accuracy, portions have been modified to better document the actual implementation.
 
 ## Summary
 
-A protocol to retrieve messages destined for a recipient from a message holder.
-
-## Motivation
-
-Messages can be picked up simply by sending a message to the _Message Holder_
-with a `return_route` decorator specified. This mechanism is implicit, and lacks
-some desired behavior made possible by more explicit messages.
-
-This protocol is the explicit companion to the implicit method of picking up messages.
+A protocol to facilitate an agent picking up messages held at a mediator.
 
 ## Tutorial
 
 ### Roles
 
-**Message Holder** - The agent that has messages waiting for pickup by the _Recipient_.
+**Mediator** - The agent that has messages waiting for pickup by the _Recipient_.
 
 **Recipient** - The agent who is picking up messages.
 
 ### Flow
 
-The `status-request` message is used to query how many messages are pending.
+The `status-request` message is sent by the _Recipient_ to the _Mediator_ to query how many messages are pending.
 
-The `status` message is used to communicate the state of the message queue.
+The `status` message is the response to `status-request` to communicate the state of the message queue.
 
-The `delivery-request` message is used to request delivery of pending messages.
+The `delivery-request` message is sent by the _Recipient_ to request delivery of pending messages.
 
-The `message-received` message is used to confirm receipt of delivered messages, 
-prompting the _Message Holder_ to clear messages from the queue.
+The `delivery` message is a wrapper message, sent by the _Mediator_, that contains the messages requested by the _Recipient_.
 
-The `live-delivery-change` message is used to set the state of `live_delivery`. 
+The `message-received` message is sent by the _Recipient_ to confirm receipt of delivered messages, 
+prompting the _Mediator_ to clear messages from the queue.
 
-When a _Recipient_ is actively connected to a message holder (via WebSocket, for
-example), new messages are sent directly to the _Recipient_ and will not enter the
-queue.
-- This behavior will be able to be modified by the `live_delivery` attribute, once it is implemented.
+> Note: Live Mode is referenced in the RFC, but currently this plugin does not support live mode functionality. See [Live Mode](https://github.com/hyperledger/aries-rfcs/blob/main/features/0685-pickup-v2/README.md#live-mode) in the RFC for more information.
 
 ## Reference
 
-Each message sent MUST use the `~transport` decorator as follows. This has been omitted from the examples for brevity.
+Each message sent MUST use the `~transport` decorator as follows, which has been adopted from [RFC 0092 transport return route](https://github.com/hyperledger/aries-rfcs/blob/main/features/0092-transport-return-route/README.md) protocol. This has been omitted from the examples for brevity.
+
 ```json=
 "~transport": {
     "return_route": "all"
 }
 ```
 
-### StatusRequest
+## Message Types
 
-Sent by the _Recipient_ to the _Message Holder_ to request a `status` message. Example:
+### Status Request
+
+Sent by the _Recipient_ to the _Mediator_ to request a `status` message.
+#### Example:
 
 ```json=
 {
     "@id": "123456781",
     "@type": "https://didcomm.org/messagepickup/2.0/status-request",
-    "recipient_key": "<key for messages>",
+    "recipient_key": "<key for messages>"
 }
 ```
 
-`recipient_key` is optional. When specified, only the status related to that
-`recipient_key` is returned. When omitted, the status for all messages queued for
-the _Recipient_ is returned.
+`recipient_key` is optional. When specified, the _Mediator_ will only return status related to that recipient key. This allows the _Recipient_ to discover if any messages are in the queue that were sent to a specific key. You can find more details about `recipient_key` and how it's managed in [0211-route-coordination](https://github.com/hyperledger/aries-rfcs/blob/master/features/0211-route-coordination/README.md).
 
 ### Status
 
-Status details about pending messages. Example:
+Status details about waiting messages.
+
+#### Example:
 
 ```json=
 {
@@ -89,33 +71,34 @@ Status details about pending messages. Example:
     "@type": "https://didcomm.org/messagepickup/2.0/status",
     "recipient_key": "<key for messages>",
     "message_count": 7,
-    "duration_waited": 3600,
-    "newest_time": "2019-05-01 12:00:00Z",
-    "oldest_time": "2019-05-01 12:00:01Z",
-    "total_size": 8096
+    "longest_waited_seconds": 3600,
+    "newest_received_time": "2019-05-01 12:00:00Z",
+    "oldest_received_time": "2019-05-01 12:00:01Z",
+    "total_bytes": 8096,
+    "live_delivery": false
 }
 ```
 
-`message_count` is the only required attribute. The others may be present if
-offered by the _Message Holder_.
+`message_count` is the only REQUIRED attribute. The others MAY be present if offered by the _Mediator_. This plugin currently does not offer any attribute other than the `message_count`, but a descriptor of the other attributes is included here.
 
-`duration_waited` is in seconds, and is the longest  delay of any message in the
-queue.
+`longest_waited_seconds` is in seconds, and is the longest delay of any message in the queue.
 
-`total_size` is in bytes.
+`total_bytes` represents the total size of all messages.
 
-If a `recipient_key` was specified in the `status-request` message, the matching
-value MUST be specified in the `recipient_key` attribute of the status
-message.
+If a `recipient_key` was specified in the `status-request` message, the matching value is specified in the `recipient_key` attribute of the status message.
 
-Due to the potential for confusing what the actual state of the message queue
-is, a status message MUST NOT be put on the pending message queue and MUST only
-be sent when the _Recipient_ is actively connected (HTTP request awaiting
-response, WebSocket, etc.).
+`live_delivery` state is also indicated in the status message. 
+
+> Note: due to the potential for confusing what the actual state of the message queue
+> is, a status message MUST NOT be put on the pending message queue and MUST only
+> be sent when the _Recipient_ is actively connected (HTTP request awaiting
+> response, WebSocket, etc.).
 
 ### Delivery Request
 
-A request fromt the _Recipient_ to the _Message Holder_ have waiting messages delivered. Example:
+A request from the _Recipient_ to the _Mediator_ to have pending messages delivered. 
+
+#### Examples:
 
 ```json=
 {
@@ -126,66 +109,64 @@ A request fromt the _Recipient_ to the _Message Holder_ have waiting messages de
 }
 ```
 
-After receipt of this message, the _Message Holder_ SHOULD deliver up to the limit
-indicated, or the total number of messages in the queue for the _Recipient_.
+```json=
+{
+    "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
+    "limit": 1
+}
+```
 
-> Note: While `limit` is a required attribute, if the connection is over HTTP, only 1 message 
-> is able to be sent from the queue at a time. Connection over WebSocket, etc. allows for 
-> multiple messages to be delivered from the queue at a time. Setting the `limit`, then,
-> requires some knowledge of the connection in order for expected behavior to match implemented behavior.
 
-`recipient_key` is optional. When specified, only the messages related to that
-`recipient_key` are returned. When omitted, all messages queued for the _Recipient_
-are returned.
+`limit` is a REQUIRED attribute, and after receipt of this message, the _Mediator_ will deliver up to the `limit` indicated. 
 
-If no messages are available to be sent, a `status` message MUST be sent immediately. 
+`recipient_key` is optional. When specified, the _Mediator_ will only return messages sent to that recipient key.
+
+If no messages are available to be sent, a `status` message is sent immediately, as a response to the Delivery Request.
+
+Delivered messages will not be deleted from the queue until delivery is acknowledged by a `messages-received` message.
+
+### Message Delivery
+
+Messages delivered from the queue are delivered in a batch `delivery` message as attachments. The ID of each attachment is used to confirm receipt. The ID is an opaque value, and the Recipient should not infer anything from the value.
+
+The `recipient_key` attribute is only included when responding to a `delivery-request` message that indicates a `recipient_key`.
+
+```json=
+{
+    "@id": "123456781",
+    "~thread": {
+        "thid": "<message id of delivery-request message>"
+      },
+    "@type": "https://didcomm.org/messagepickup/2.0/delivery",
+    "recipient_key": "<key for messages>",
+    "~attach": [{
+    	"@id": "<messageid>",
+    	"data": {
+    		"base64": ""
+    	}
+    }]
+}
+```
+
+This method of delivery does incur an encoding cost, but is much simpler to implement and a more robust interaction.
 
 ### Messages Received
-An acknowledgement sent by the _Recipient_ indicating which messages were received.
+After receiving messages, the _Recipient_ needs to send an ack message indiciating 
+which messages are safe to clear from the queue.
+
+#### Example:
+
 ```json=
 {
     "@type": "https://didcomm.org/messagepickup/2.0/messages-received",
-    "message_tag_list": ["123","456"]
+    "message_id_list": ["123","456"]
 }
 ```
-`message_tag_list` identifies which messages were received. The tag of each message 
-is present in the encrypted form of the message as an artifact of encryption, and is 
-indexed by the _Message Holder_. Tags are unique in the scope of a _Recipient_, and are sufficient 
-to uniquely identify messages.
 
-Upon receipt of this message, the _Message Holder_ knows that the messages have been received and can 
-confidently remove them from the list of queued messages. The _Message Holder_ SHOULD send an updated 
-`status` message reflecting changes to the queue.
+`message_id_list` is a list of ids of each message received. The id of each message is present in the attachment descriptor of each attached message of a `delivery` message.
 
-The _Message Holder_ MUST NOT delete messages from the queue until it receives a `messages-received` ackowledgement, 
-indicating which messages are safe to delete. 
+Upon receipt of this message, the _Mediator_ knows which messages have been received, and can remove them from the collection of queued messages with confidence. The mediator SHOULD send an updated `status` message reflecting the changes to the queue.
 
 ### Multiple Recipients
-If a message arrives at a mediator addressed to multiple recipients, the message should be queued 
-for each recipient independently. If one of the addressed recipients retrieves a message and indicates 
-it has been received, that message MUST still be held and then removed by the other addressed recipients.
 
-## Live Mode
-Not yet implemented. See [here](https://github.com/TelegramSam/aries-rfc/tree/pickup_v2/features/0685-pickup-v2#live-mode) 
-for expected behavior.
-
-## Prior art
-
-Version 1.0 of this protocol served as the main inspiration for this version.
-
-## Unresolved questions
-
-- Is this the appropriate place to talk about when to queue messages in a mediator?
-- Is 'Pickup' the wrong name?
-
-## Implementations
-
-The following lists the implementations (if any) of this RFC. Please do a pull
-request to add your implementation. If the implementation is open source,
-include a link to the repo or to the implementation within the repo. Please be
-consistent in the "Name" field so that a mechanical processing of the RFCs can
-generate a list of all RFCs supported by an Aries implementation.
-
-Name / Link | Implementation Notes
---- | ---
- |  |
+If a message arrives at a _Mediator_ addressed to multiple _Recipients_, the message MUST be queued for each _Recipient_ independently. If one of the addressed _Recipients_ retrieves a message and indicates it has been received, that message MUST still be held and then removed by the other addressed _Recipients_.
