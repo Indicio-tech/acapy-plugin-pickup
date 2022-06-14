@@ -17,11 +17,3 @@ services:
     networks:
       node_net:
         ipv4_address: 172.28.1.4
-
-# networking for the Redis container
-networks:
-  node_net:
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.28.0.0/16

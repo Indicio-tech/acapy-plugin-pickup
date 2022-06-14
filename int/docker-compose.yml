@@ -31,6 +31,9 @@ services:
         --wallet-name test
         --wallet-key test
         --auto-provision
+    depends_on:
+      redis:
+        condition: service_healthy
 
   echo:
     # Image with session support, replace with latest after merged
@@ -71,7 +74,7 @@ services:
       dockerfile: ./Dockerfile.test.runner
     environment:
       - WAIT_BEFORE_HOSTS=3
-      - WAIT_HOSTS=acapy_pickup:3000,echo:3002,redis:6379
+      - WAIT_HOSTS=acapy_pickup:3000,echo:3002
       - WAIT_HOSTS_TIMEOUT=60
       - WAIT_SLEEP_INTERVAL=1
       - WAIT_HOST_CONNECT_TIMEOUT=30
@@ -82,5 +85,5 @@ services:
     depends_on:
       - acapy_pickup
       - echo
-      - redis
+      - redis 
       
