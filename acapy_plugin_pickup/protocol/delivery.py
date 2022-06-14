@@ -31,6 +31,7 @@ from .status import Status
 LOGGER = logging.getLogger(__name__)
 PROTOCOL = "https://didcomm.org/messagepickup/2.0"
 
+
 def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
     """Serialize outbound message object."""
     outbound_dict = {
@@ -45,9 +46,7 @@ def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
         )
     }
     outbound_dict["payload"] = (
-        msg.payload.decode("utf-8")
-        if isinstance(msg.payload, bytes)
-        else msg.payload
+        msg.payload.decode("utf-8") if isinstance(msg.payload, bytes) else msg.payload
     )
     outbound_dict["enc_payload"] = (
         msg.enc_payload.decode("utf-8")
@@ -56,9 +55,10 @@ def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
     )
     outbound_dict["target"] = msg.target.serialize() if msg.target else None
     outbound_dict["target_list"] = [
-        target.serialize() for target in msg.target_list
+        target.serialize() for target in msg.target_list if target
     ] or None
     return outbound_dict
+
 
 def msg_deserialize(value: dict) -> OutboundMessage:
     """Deserialize outbound message object."""
@@ -66,13 +66,12 @@ def msg_deserialize(value: dict) -> OutboundMessage:
     if "target" in value:
         value["target"] = ConnectionTarget.deserialize(value["target"])
 
-    if "target_list" in value:
+    if "target_list" in value and value["target_list"]:
         value["target_list"] = [
             ConnectionTarget.deserialize(target) for target in value["target_list"]
         ]
 
     return OutboundMessage(**value)
-
 
 
 class DeliveryRequest(AgentMessage):
@@ -229,12 +228,14 @@ class RedisPersistedQueue(UndeliveredInterface):
             msg: The OutboundMessage to add
         """
 
-        msg_key = sha256(msg.encode("utf-8")).digest()
+        msg_key = sha256(msg.payload.encode("utf-8")).digest()
 
-        await self.queue_by_key.rpush(key, msg_key)
-        await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
-        await self.queue_by_key.setex(
-            msg_key, timedelta(seconds=self.exmessage_seconds), json.dumps(msg_serialize(msg))
+        self.queue_by_key.rpush(key, msg_key)
+        self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
+        self.queue_by_key.setex(
+            msg_key,
+            timedelta(seconds=self.exmessage_seconds),
+            json.dumps(msg_serialize(msg)),
         )
 
     async def has_message_for_key(self, key: str):
@@ -243,9 +244,9 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_key = str(await self.queue_by_key.lrange(key, 0, -1))
+        msg_key = str(self.queue_by_key.lrange(key, 0, -1))
 
-        if await self.queue_by_key.llen(msg_key) is not None:
+        if self.queue_by_key.llen(msg_key) is not None:
             return True
         return False
 
@@ -255,7 +256,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        length = await self.queue_by_key.llen(key)
+        length = self.queue_by_key.llen(key)
         return length
 
     async def get_one_message_for_key(self, key: str):
@@ -264,14 +265,14 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_key = await self.queue_by_key.lpop(key)
+        msg_key = self.queue_by_key.lpop(key)
         msg = None
 
         while msg is None and msg_key is not None:
-            msg = await self.queue_by_key.get(msg_key)
-            await self.queue_by_key.delete(msg_key)
+            msg = self.queue_by_key.get(msg_key)
+            self.queue_by_key.delete(msg_key)
             if msg is None:
-                msg_key = await self.queue_by_key.lpop(key)
+                msg_key = self.queue_by_key.lpop(key)
 
         return msg_deserialize(json.loads(msg))
 
@@ -281,9 +282,9 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        length = await self.queue_by_key.llen(key)
+        length = self.queue_by_key.llen(key)
 
-        return await self.queue_by_key.lrange(key, 0, length)
+        return self.queue_by_key.lrange(key, 0, length)
 
     async def remove_message_for_key(self, key: str):
         """
@@ -292,13 +293,14 @@ class RedisPersistedQueue(UndeliveredInterface):
             key: The key to use for lookup
             msg: The message to remove from the queue
         """
-        msg_key = await self.queue_by_key.lpop(key)
-        msg = await self.queue_by_key.get(msg_key)
+        msg_key = self.queue_by_key.lpop(key)
+        msg = self.queue_by_key.get(msg_key)
 
         if msg is not None:
-            await self.queue_by_key.delete(msg_key)
+            self.queue_by_key.delete(msg_key)
             return True
         return False
+
 
 class DeliveryQueue:
     """
