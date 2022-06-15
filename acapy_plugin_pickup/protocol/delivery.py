@@ -1,9 +1,19 @@
 """Delivery Request and wrapper message for Pickup Protocol."""
 
+from abc import ABC, abstractmethod
+import aioredis
+import copy
+import time
+from datetime import timedelta
+from hashlib import sha256
 import json
 import logging
-from typing import List, Optional, Sequence, Set, cast
+from os import name
+from typing import List, Optional, Sequence, Set, cast, Dict, Any
 
+from yaml import serialize
+
+from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
 from aries_cloudagent.transport.inbound.delivery_queue import DeliveryQueue
@@ -20,6 +30,48 @@ from .status import Status
 
 LOGGER = logging.getLogger(__name__)
 PROTOCOL = "https://didcomm.org/messagepickup/2.0"
+
+
+def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
+    """Serialize outbound message object."""
+    outbound_dict = {
+        prop: getattr(msg, prop)
+        for prop in (
+            "connection_id",
+            "reply_session_id",
+            "reply_thread_id",
+            "reply_to_verkey",
+            "reply_from_verkey",
+            "to_session_only",
+        )
+    }
+    outbound_dict["payload"] = (
+        msg.payload.decode("utf-8") if isinstance(msg.payload, bytes) else msg.payload
+    )
+    outbound_dict["enc_payload"] = (
+        msg.enc_payload.decode("utf-8")
+        if isinstance(msg.enc_payload, bytes)
+        else msg.enc_payload
+    )
+    outbound_dict["target"] = msg.target.serialize() if msg.target else None
+    outbound_dict["target_list"] = [
+        target.serialize() for target in msg.target_list if target
+    ] or None
+    return outbound_dict
+
+
+def msg_deserialize(value: dict) -> OutboundMessage:
+    """Deserialize outbound message object."""
+    value = copy.deepcopy(value)
+    if "target" in value:
+        value["target"] = ConnectionTarget.deserialize(value["target"])
+
+    if "target_list" in value and value["target_list"]:
+        value["target_list"] = [
+            ConnectionTarget.deserialize(target) for target in value["target_list"]
+        ]
+
+    return OutboundMessage(**value)
 
 
 class DeliveryRequest(AgentMessage):
@@ -118,6 +170,239 @@ class Delivery(AgentMessage):
     message_attachments: Annotated[
         Sequence[Attach], Field(description="Attached messages", alias="~attach")
     ]
+
+
+class UndeliveredInterface(ABC):
+    """Interface for undelivered message queue."""
+
+    @abstractmethod
+    async def add_message(self, msg: OutboundMessage):
+        """Add an OutboundMessage to delivery queue."""
+
+    @abstractmethod
+    async def has_message_for_key(self, key: str):
+        """Check for queued messages by key."""
+
+    @abstractmethod
+    async def message_count_for_key(self, key: str):
+        """Count of queued messages by key."""
+
+    @abstractmethod
+    async def get_one_message_for_key(self, key: str):
+        """Remove and return a matching message."""
+
+    @abstractmethod
+    async def inspect_all_messages_for_key(self, key: str):
+        """Return all messages for key."""
+
+    @abstractmethod
+    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
+        """Remove specified message from queue for key."""
+
+
+class RedisPersistedQueue(UndeliveredInterface):
+    """
+    PersistedQueue Class
+    Manages undelivered messages.
+    """
+
+    def __init__(self, redis: aioredis.Redis) -> None:
+        """
+        Initialize an instance of PersistenceQueue.
+        This uses an in memory structure to queue messages,
+        though the active Redis server prevents losing
+        the queue should your machine turn off.
+        """
+
+        self.queue_by_key = redis  # Queue of messages and corresponding keys
+        self.ttl_seconds = 604800  # one week
+        self.exmessage_seconds = 259200  # three days
+
+    async def add_message(self, key: str, msg: OutboundMessage):
+        """
+        Add an OutboundMessage to delivery queue.
+        The message is added once per recipient key
+        Args:
+            key: The recipient key of the connected
+            agent
+            msg: The OutboundMessage to add
+        """
+
+        msg_key = sha256(msg.payload.encode("utf-8")).digest()
+
+        self.queue_by_key.rpush(key, msg_key)
+        self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
+        self.queue_by_key.setex(
+            msg_key,
+            timedelta(seconds=self.exmessage_seconds),
+            json.dumps(msg_serialize(msg)),
+        )
+
+    async def has_message_for_key(self, key: str):
+        """
+        Check for queued messages by key.
+        Args:
+            key: The key to use for lookup
+        """
+        msg_key = str(self.queue_by_key.lrange(key, 0, -1))
+
+        if self.queue_by_key.llen(msg_key) is not None:
+            return True
+        return False
+
+    async def message_count_for_key(self, key: str):
+        """
+        Count of queued messages by key.
+        Args:
+            key: The key to use for lookup
+        """
+        length = self.queue_by_key.llen(key)
+        return length
+
+    async def get_one_message_for_key(self, key: str):
+        """
+        Remove and return a matching message.
+        Args:
+            key: The key to use for lookup
+        """
+        msg_key = self.queue_by_key.lpop(key)
+        msg = None
+
+        while msg is None and msg_key is not None:
+            msg = self.queue_by_key.get(msg_key)
+            self.queue_by_key.delete(msg_key)
+            if msg is None:
+                msg_key = self.queue_by_key.lpop(key)
+
+        return msg_deserialize(json.loads(msg))
+
+    async def inspect_all_messages_for_key(self, key: str):
+        """
+        Return all messages for key.
+        Args:
+            key: The key to use for lookup
+        """
+        length = self.queue_by_key.llen(key)
+
+        return self.queue_by_key.lrange(key, 0, length)
+
+    async def remove_message_for_key(self, key: str):
+        """
+        Remove specified message from queue for key.
+        Args:
+            key: The key to use for lookup
+            msg: The message to remove from the queue
+        """
+        msg_key = self.queue_by_key.lpop(key)
+        msg = self.queue_by_key.get(msg_key)
+
+        if msg is not None:
+            self.queue_by_key.delete(msg_key)
+            return True
+        return False
+
+
+class DeliveryQueue:
+    """
+    DeliveryQueue class.
+    Manages undelivered messages.
+    """
+
+    def __init__(self) -> None:
+        """
+        Initialize an instance of DeliveryQueue.
+        This uses an in memory structure to queue messages.
+        """
+
+        self.queue_by_key = {}
+        self.ttl_seconds = 604800  # one week
+
+    def expire_messages(self, ttl=None):
+        """
+        Expire messages that are past the time limit.
+        Args:
+            ttl: Optional. Allows override of configured ttl
+        """
+
+        ttl_seconds = ttl or self.ttl_seconds
+        horizon = time.time() - ttl_seconds
+        for key in self.queue_by_key.keys():
+            self.queue_by_key[key] = [
+                wm for wm in self.queue_by_key[key] if not wm.older_than(horizon)
+            ]
+
+    def add_message(self, msg: OutboundMessage):
+        """
+        Add an OutboundMessage to delivery queue.
+        The message is added once per recipient key
+        Args:
+            msg: The OutboundMessage to add
+        """
+        keys = set()
+        if msg.target:
+            keys.update(msg.target.recipient_keys)
+        if msg.reply_to_verkey:
+            keys.add(msg.reply_to_verkey)
+        wrapped_msg = QueuedMessage(msg)
+        for recipient_key in keys:
+            if recipient_key not in self.queue_by_key:
+                self.queue_by_key[recipient_key] = []
+            self.queue_by_key[recipient_key].append(wrapped_msg)
+
+    def has_message_for_key(self, key: str):
+        """
+        Check for queued messages by key.
+        Args:
+            key: The key to use for lookup
+        """
+        if key in self.queue_by_key and len(self.queue_by_key[key]):
+            return True
+        return False
+
+    def message_count_for_key(self, key: str):
+        """
+        Count of queued messages by key.
+        Args:
+            key: The key to use for lookup
+        """
+        if key in self.queue_by_key:
+            return len(self.queue_by_key[key])
+        else:
+            return 0
+
+    def get_one_message_for_key(self, key: str):
+        """
+        Remove and return a matching message.
+        Args:
+            key: The key to use for lookup
+        """
+        if key in self.queue_by_key:
+            return self.queue_by_key[key].pop(0).msg
+
+    def inspect_all_messages_for_key(self, key: str):
+        """
+        Return all messages for key.
+        Args:
+            key: The key to use for lookup
+        """
+        if key in self.queue_by_key:
+            for wrapped_msg in self.queue_by_key[key]:
+                yield wrapped_msg.msg
+
+    def remove_message_for_key(self, key: str, msg: OutboundMessage):
+        """
+        Remove specified message from queue for key.
+        Args:
+            key: The key to use for lookup
+            msg: The message to remove from the queue
+        """
+        if key in self.queue_by_key:
+            for wrapped_msg in self.queue_by_key[key]:
+                if wrapped_msg.msg == msg:
+                    self.queue_by_key[key].remove(wrapped_msg)
+                    if not self.queue_by_key[key]:
+                        del self.queue_by_key[key]
+                    break  # exit processing loop
 
 
 class MessagesReceived(AgentMessage):
