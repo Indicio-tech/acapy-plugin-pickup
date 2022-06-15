@@ -31,6 +31,9 @@ services:
         --wallet-name test
         --wallet-key test
         --auto-provision
+    depends_on:
+      redis:
+        condition: service_healthy
 
   echo:
     # Image with session support, replace with latest after merged
@@ -38,6 +41,26 @@ services:
     ports:
       - "3002:3002"
     command: --host 0.0.0.0 --port 3002 --log-level debug
+
+  redis:
+    image: "redis:alpine"
+
+    ports:
+     - "6379:6379"
+
+    volumes:
+      - ./redis-data:/var/lib/redis
+      - ./redis.conf:/etc/redis/redis.conf
+
+    environment:
+     - REDIS_REPLICATION_MODE=master
+
+    healthcheck:
+      test: nc -z localhost 6379 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   #*******************************************************************
   # tester: drives tests for acapy_plugin_pickup in a                *
@@ -62,3 +85,5 @@ services:
     depends_on:
       - acapy_pickup
       - echo
+      - redis 
+      
