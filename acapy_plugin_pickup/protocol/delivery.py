@@ -279,9 +279,9 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        length = self.queue_by_key.llen(key)
+        length = await self.queue_by_key.llen(key)
 
-        return self.queue_by_key.lrange(key, 0, length)
+        return await self.queue_by_key.lrange(key, 0, length)
 
     async def remove_message_for_key(self, key: str):
         """

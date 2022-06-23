@@ -1,5 +1,6 @@
-import fakeredis
 import pytest
+from asynctest import mock
+from redis.asyncio import Redis
 
 from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue
 from aries_cloudagent.transport.outbound.message import OutboundMessage
@@ -49,34 +50,34 @@ async def test_persistedqueue(msg):
     Unit test for the delivery protocol RedisPersistedQueue class.
     """
     PQ = RedisPersistedQueue(
-        redis=fakeredis.FakeStrictRedis(host="localhost", port=6379, db=0)
+        redis=mock.MagicMock(spec=Redis)
     )
     key = " ".join(msg.target.recipient_keys)
 
-    PQ.queue_by_key.flushall(key)
-    initial_queue = PQ.queue_by_key.llen(key)
+    await PQ.queue_by_key.flushall()
+    initial_queue = await PQ.queue_by_key.llen(key)
 
     await PQ.add_message(key, msg)
-    added_queue = PQ.queue_by_key.llen(key)
+    added_queue = await PQ.queue_by_key.llen(key)
     assert added_queue == initial_queue + 1
 
     message_for_key = await PQ.has_message_for_key(key)
     assert message_for_key
 
     message_count = await PQ.message_count_for_key(key)
-    assert message_count == PQ.queue_by_key.llen(key)
+    assert message_count == await PQ.queue_by_key.llen(key)
 
     get_message_for_key = await PQ.get_one_message_for_key(key)
     assert str(get_message_for_key) == str(msg)
-    assert PQ.queue_by_key.llen(key) == 0
+    assert await PQ.queue_by_key.llen(key) == 0
 
     await PQ.add_message(key, msg)
     await PQ.add_message(key, msg)
-    new_added_queue_len = PQ.queue_by_key.llen(key)
+    new_added_queue_len = await PQ.queue_by_key.llen(key)
     inspect_messages = await PQ.inspect_all_messages_for_key(key)
     assert inspect_messages
     assert len(inspect_messages) == new_added_queue_len
 
     remove_message = await PQ.remove_message_for_key(key)
     assert remove_message
-    assert PQ.queue_by_key.llen(key) == 1
+    assert await PQ.queue_by_key.llen(key) == 1
