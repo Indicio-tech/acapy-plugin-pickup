@@ -196,6 +196,10 @@ class UndeliveredInterface(ABC):
     async def remove_message_for_key(self, key: str, msg: OutboundMessage):
         """Remove specified message from queue for key."""
 
+    @abstractmethod
+    async def flush_messages(self, key: str) -> Sequence[OutboundMessage]:
+        """Clear and return messages for key."""
+
 
 class RedisPersistedQueue(UndeliveredInterface):
     """
@@ -227,9 +231,9 @@ class RedisPersistedQueue(UndeliveredInterface):
 
         msg_key = sha256(msg.payload.encode("utf-8")).digest()
 
-        self.queue_by_key.rpush(key, msg_key)
-        self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
-        self.queue_by_key.setex(
+        await self.queue_by_key.rpush(key, msg_key)
+        await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
+        await self.queue_by_key.setex(
             msg_key,
             timedelta(seconds=self.exmessage_seconds),
             json.dumps(msg_serialize(msg)),
@@ -241,11 +245,8 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_key = str(self.queue_by_key.lrange(key, 0, -1))
-
-        if self.queue_by_key.llen(msg_key) is not None:
-            return True
-        return False
+        msg_key = await self.queue_by_key.lindex(key, 0)
+        return bool(msg_key)
 
     async def message_count_for_key(self, key: str):
         """
@@ -253,8 +254,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        length = self.queue_by_key.llen(key)
-        return length
+        return await self.queue_by_key.llen(key)
 
     async def get_one_message_for_key(self, key: str):
         """
@@ -262,14 +262,14 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_key = self.queue_by_key.lpop(key)
+        msg_key = await self.queue_by_key.lpop(key)
         msg = None
 
         while msg is None and msg_key is not None:
-            msg = self.queue_by_key.get(msg_key)
-            self.queue_by_key.delete(msg_key)
+            msg = await self.queue_by_key.get(msg_key)
+            await self.queue_by_key.delete(msg_key)
             if msg is None:
-                msg_key = self.queue_by_key.lpop(key)
+                msg_key = await self.queue_by_key.lpop(key)
 
         return msg_deserialize(json.loads(msg))
 
@@ -279,9 +279,13 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        length = await self.queue_by_key.llen(key)
-
-        return await self.queue_by_key.lrange(key, 0, length)
+        msg_keys = await self.queue_by_key.get(key)
+        if msg_keys:
+            msgs = [ await self.queue_by_key.get(msg_key) for msg_key in msg_keys ]
+            # Remove any expired (None values) messages
+            msgs = list(filter(None, msgs))
+            return msgs
+        return []
 
     async def remove_message_for_key(self, key: str):
         """
@@ -290,13 +294,18 @@ class RedisPersistedQueue(UndeliveredInterface):
             key: The key to use for lookup
             msg: The message to remove from the queue
         """
-        msg_key = self.queue_by_key.lpop(key)
-        msg = self.queue_by_key.get(msg_key)
+        msg_key = await self.queue_by_key.lpop(key)
+        msg = await self.queue_by_key.get(msg_key)
 
         if msg is not None:
-            self.queue_by_key.delete(msg_key)
+            await self.queue_by_key.delete(msg_key)
             return True
         return False
+
+    async def flush_messages(self, key: str) -> Sequence[OutboundMessage]:
+        messages = await self.queue_by_key.get(key)
+        await self.queue_by_key.delete(key)
+        return messages
 
 
 class DeliveryQueue:

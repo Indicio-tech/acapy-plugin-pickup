@@ -49,35 +49,35 @@ async def test_persistedqueue(msg):
     PersistedQueue Test.
     Unit test for the delivery protocol RedisPersistedQueue class.
     """
-    PQ = RedisPersistedQueue(
+    queue = RedisPersistedQueue(
         redis=mock.MagicMock(spec=Redis)
     )
     key = " ".join(msg.target.recipient_keys)
 
-    await PQ.queue_by_key.flushall()
-    initial_queue = await PQ.queue_by_key.llen(key)
+    await queue.flush_messages(key)
+    initial_queue = await queue.message_count_for_key(key)
 
-    await PQ.add_message(key, msg)
-    added_queue = await PQ.queue_by_key.llen(key)
+    await queue.add_message(key, msg)
+    added_queue = await queue.message_count_for_key(key)
     assert added_queue == initial_queue + 1
 
-    message_for_key = await PQ.has_message_for_key(key)
+    message_for_key = await queue.has_message_for_key(key)
     assert message_for_key
 
-    message_count = await PQ.message_count_for_key(key)
-    assert message_count == await PQ.queue_by_key.llen(key)
+    message_count = await queue.message_count_for_key(key)
+    assert message_count == await queue.message_count_for_key(key)
 
-    get_message_for_key = await PQ.get_one_message_for_key(key)
+    get_message_for_key = await queue.get_one_message_for_key(key)
     assert str(get_message_for_key) == str(msg)
-    assert await PQ.queue_by_key.llen(key) == 0
+    assert await queue.message_count_for_key(key) == 0
 
-    await PQ.add_message(key, msg)
-    await PQ.add_message(key, msg)
-    new_added_queue_len = await PQ.queue_by_key.llen(key)
-    inspect_messages = await PQ.inspect_all_messages_for_key(key)
+    await queue.add_message(key, msg)
+    await queue.add_message(key, msg)
+    new_added_queue_len = await queue.message_count_for_key(key)
+    inspect_messages = await queue.inspect_all_messages_for_key(key)
     assert inspect_messages
     assert len(inspect_messages) == new_added_queue_len
 
-    remove_message = await PQ.remove_message_for_key(key)
+    remove_message = await queue.remove_message_for_key(key)
     assert remove_message
-    assert await PQ.queue_by_key.llen(key) == 1
+    assert await queue.message_count_for_key(key) == 1
