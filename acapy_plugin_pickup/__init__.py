@@ -2,18 +2,14 @@
 
 import logging
 import re
-import aioredis
-from typing import Dict, Any
-import copy
+from redis import asyncio as aioredis
 
 from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue
 
 from aries_cloudagent.config.injection_context import InjectionContext
-from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.core.event_bus import Event, EventBus
 from aries_cloudagent.core.profile import Profile
 from aries_cloudagent.core.protocol_registry import ProtocolRegistry
-from aries_cloudagent.transport.outbound.message import OutboundMessage
 
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange

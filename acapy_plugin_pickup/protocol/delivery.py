@@ -1,17 +1,14 @@
 """Delivery Request and wrapper message for Pickup Protocol."""
 
 from abc import ABC, abstractmethod
-import aioredis
+from redis import asyncio as aioredis
 import copy
 import time
 from datetime import timedelta
 from hashlib import sha256
 import json
 import logging
-from os import name
 from typing import List, Optional, Sequence, Set, cast, Dict, Any
-
-from yaml import serialize
 
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.messaging.request_context import RequestContext
