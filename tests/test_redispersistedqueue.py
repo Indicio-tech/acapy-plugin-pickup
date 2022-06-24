@@ -1,7 +1,7 @@
+import json
 from typing import Any, Dict, List, Optional
 import pytest
-from asynctest import mock
-from asynctest.mock import CoroutineMock
+from unittest import mock
 from redis.asyncio import Redis
 
 from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue, msg_serialize
@@ -47,6 +47,11 @@ def key(msg):
     yield ",".join(msg.target.recipient_keys)
 
 
+class CoroutineMock(mock.MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 @pytest.mark.asyncio
 async def test_add_message(
     queue: RedisPersistedQueue,
@@ -59,9 +64,9 @@ async def test_add_message(
     monkeypatch.setattr(mock_redis, "expire", CoroutineMock())
     monkeypatch.setattr(mock_redis, "setex", CoroutineMock())
     await queue.add_message(key, msg)
-    assert len(mock_redis.rpush.calls) == 1
-    assert len(mock_redis.expire.calls) == 1
-    assert len(mock_redis.setex.calls) == 1
+    mock_redis.rpush.assert_called_once()
+    mock_redis.expire.assert_called_once()
+    mock_redis.setex.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -76,7 +81,7 @@ async def test_has_message_for_key(
 ):
     monkeypatch.setattr(mock_redis, "lindex", CoroutineMock(return_value=lindex_ret))
     assert await queue.has_message_for_key(key) == expected
-    assert len(mock_redis.lindex.calls) == 1
+    mock_redis.lindex.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -95,9 +100,9 @@ async def test_has_message_for_key(
             OutboundMessage(payload="1"),
         ),
         (
-            [None, None, None, "1"],
-            {"1": OutboundMessage(payload="1")},
-            OutboundMessage(payload="1"),
+            ["1", "2", "3"],
+            {"1": None, "2": None, "3": OutboundMessage(payload="3")},
+            OutboundMessage(payload="3"),
         ),
     ],
 )
@@ -117,16 +122,21 @@ async def test_get_one_message_for_key(
 
     async def _lpop(*args, **kwargs):
         try:
-            return msg_serialize(next(generator))
+            return next(generator)
         except StopIteration:
             return None
 
     async def _get(key: str):
-        return messages[key]
+        if key not in messages or messages[key] is None:
+            return None
+        return json.dumps(msg_serialize(messages[key]))
 
     monkeypatch.setattr(mock_redis, "lpop", _lpop)
     monkeypatch.setattr(mock_redis, "get", _get)
     monkeypatch.setattr(mock_redis, "delete", CoroutineMock())
-    assert (
-        msg_serialize(expected) if expected else None
-    ) == await queue.get_one_message_for_key(key)
+    msg = await queue.get_one_message_for_key(key)
+    if expected is None:
+        assert expected == msg
+    else:
+        assert msg
+        assert msg_serialize(expected) == msg_serialize(msg)

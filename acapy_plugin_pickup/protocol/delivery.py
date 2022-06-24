@@ -59,7 +59,7 @@ def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
 def msg_deserialize(value: dict) -> OutboundMessage:
     """Deserialize outbound message object."""
     value = copy.deepcopy(value)
-    if "target" in value:
+    if "target" in value and value["target"]:
         value["target"] = ConnectionTarget.deserialize(value["target"])
 
     if "target_list" in value and value["target_list"]:
@@ -222,8 +222,8 @@ class RedisPersistedQueue(UndeliveredInterface):
         """
 
         self.queue_by_key = redis  # Queue of messages and corresponding keys
-        self.ttl_seconds = 604800  # one week
-        self.exmessage_seconds = 259200  # three days
+        self.ttl_seconds = 60 * 60 * 24 * 7  # one week
+        self.exmessage_seconds = 60 * 60 * 24 * 3  # three days
 
     async def add_message(self, key: str, msg: OutboundMessage):
         """
