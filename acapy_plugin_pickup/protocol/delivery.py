@@ -13,7 +13,6 @@ from typing import List, Optional, Sequence, Set, cast, Dict, Any
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
-from aries_cloudagent.transport.inbound.delivery_queue import DeliveryQueue
 from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 from aries_cloudagent.transport.outbound.message import OutboundMessage
@@ -202,9 +201,16 @@ class UndeliveredInterface(ABC):
 
 
 class RedisPersistedQueue(UndeliveredInterface):
-    """
-    PersistedQueue Class
+    """PersistedQueue Class
+
     Manages undelivered messages.
+
+    To support expiry of messages, the message queue is implemented in the
+    following manner:
+
+        messages are stored at db[sha(message.payload)]
+        queue is stored db[recipient_key] where the value is a list of
+            sha(message.payload)
     """
 
     def __init__(self, redis: aioredis.Redis) -> None:
@@ -229,7 +235,9 @@ class RedisPersistedQueue(UndeliveredInterface):
             msg: The OutboundMessage to add
         """
 
-        msg_key = sha256(msg.payload.encode("utf-8")).digest()
+        msg_key = sha256(
+            msg.payload.encode("utf-8") if isinstance(msg.payload, str) else msg.payload
+        ).digest()
 
         await self.queue_by_key.rpush(key, msg_key)
         await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
@@ -279,33 +287,59 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_keys = await self.queue_by_key.get(key)
+        msg_keys = await self.queue_by_key.lrange(key, 0, -1)
         if msg_keys:
-            msgs = [ await self.queue_by_key.get(msg_key) for msg_key in msg_keys ]
-            # Remove any expired (None values) messages
-            msgs = list(filter(None, msgs))
+            msgs = [await self.queue_by_key.get(msg_key) for msg_key in msg_keys]
+            msgs = [msg_deserialize(json.loads(msg)) for msg in msgs if msg]
             return msgs
         return []
 
-    async def remove_message_for_key(self, key: str):
+    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
         """
         Remove specified message from queue for key.
         Args:
             key: The key to use for lookup
             msg: The message to remove from the queue
         """
-        msg_key = await self.queue_by_key.lpop(key)
-        msg = await self.queue_by_key.get(msg_key)
+        msg_key = sha256(
+            msg.payload.encode("utf-8") if isinstance(msg.payload, str) else msg.payload
+        ).digest()
 
-        if msg is not None:
-            await self.queue_by_key.delete(msg_key)
-            return True
-        return False
+        await self.queue_by_key.lrem(key, 1, msg_key)
+        await self.queue_by_key.delete(msg_key)
 
     async def flush_messages(self, key: str) -> Sequence[OutboundMessage]:
-        messages = await self.queue_by_key.get(key)
+        messages = await self.queue_by_key.lrange(key, 0, -1)
         await self.queue_by_key.delete(key)
         return messages
+
+
+class QueuedMessage:
+    """
+    Wrapper Class for queued messages.
+
+    Allows tracking Metadata.
+    """
+
+    def __init__(self, msg: OutboundMessage):
+        """
+        Create Wrapper for queued message.
+
+        Automatically sets timestamp on create.
+        """
+        self.msg = msg
+        self.timestamp = time.time()
+
+    def older_than(self, compare_timestamp: float) -> bool:
+        """
+        Age Comparison.
+
+        Allows you to test age as compared to the provided timestamp.
+
+        Args:
+            compare_timestamp: The timestamp to compare
+        """
+        return self.timestamp < compare_timestamp
 
 
 class DeliveryQueue:
