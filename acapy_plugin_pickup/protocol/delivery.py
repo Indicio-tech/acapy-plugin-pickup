@@ -279,6 +279,9 @@ class RedisPersistedQueue(UndeliveredInterface):
             if msg is None:
                 msg_key = await self.queue_by_key.lpop(key)
 
+        if msg is None:
+            return None
+
         return msg_deserialize(json.loads(msg))
 
     async def inspect_all_messages_for_key(self, key: str):
