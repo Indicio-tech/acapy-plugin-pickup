@@ -49,12 +49,9 @@ async def test_persistedqueue(msg):
     PersistedQueue Test.
     Unit test for the delivery protocol RedisPersistedQueue class.
     """
-    queue = RedisPersistedQueue(
-        redis=mock.MagicMock(spec=Redis)
-    )
+    queue = RedisPersistedQueue(redis=mock.MagicMock(spec=Redis))
     key = " ".join(msg.target.recipient_keys)
 
-    await queue.flush_messages(key)
     initial_queue = await queue.message_count_for_key(key)
 
     await queue.add_message(key, msg)
