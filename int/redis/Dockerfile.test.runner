@@ -1,0 +1,25 @@
+FROM python:3.7 AS base
+WORKDIR /app
+
+# Install and Configure Poetry
+ENV POETRY_VERSION=1.1.11
+ENV POETRY_HOME=/opt/poetry
+RUN curl -sSL https://install.python-poetry.org | python -
+ENV PATH="/opt/poetry/bin:$PATH"
+RUN poetry config virtualenvs.in-project true
+
+# Setup project
+RUN mkdir acapy_plugin_pickup; touch acapy_plugin_pickup/__init__.py
+COPY pyproject.toml poetry.lock README.md ./
+RUN poetry install
+
+# Final Image
+FROM python:3.7
+
+WORKDIR /app
+COPY --from=base /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY acapy_plugin_pickup/ acapy_plugin_pickup/
+COPY int/redis/tests/ tests/
+ENTRYPOINT ["pytest"]
