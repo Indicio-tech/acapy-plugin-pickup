@@ -1,23 +1,12 @@
+import json
+from typing import Any, Dict, List, Optional
 import pytest
-from asynctest import mock
+from unittest import mock
 from redis.asyncio import Redis
 
-from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue
+from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue, msg_serialize
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
-
-
-"""
-{
-  "result": {
-    "did": "Sfrv1gcBQyqRy2EGfkZDek",
-    "verkey": "EzUpTawM8uLQfGW9pTt6HWVT6ZsTeFdgjxSU7WLTRCVm",
-    "posture": "wallet_only",
-    "key_type": "ed25519",
-    "method": "sov"
-  }
-}
-"""
 
 
 @pytest.fixture
@@ -43,38 +32,111 @@ def msg(target):
     )
 
 
+@pytest.fixture
+def mock_redis():
+    yield mock.MagicMock(spec=Redis)
+
+
+@pytest.fixture
+def queue(mock_redis):
+    yield RedisPersistedQueue(redis=mock_redis)
+
+
+@pytest.fixture
+def key(msg):
+    yield ",".join(msg.target.recipient_keys)
+
+
+class CoroutineMock(mock.MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 @pytest.mark.asyncio
-async def test_persistedqueue(msg):
-    """
-    PersistedQueue Test.
-    Unit test for the delivery protocol RedisPersistedQueue class.
-    """
-    queue = RedisPersistedQueue(redis=mock.MagicMock(spec=Redis))
-    key = " ".join(msg.target.recipient_keys)
-
-    initial_queue = await queue.message_count_for_key(key)
-
+async def test_add_message(
+    queue: RedisPersistedQueue,
+    key: str,
+    msg: OutboundMessage,
+    mock_redis: mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(mock_redis, "rpush", CoroutineMock())
+    monkeypatch.setattr(mock_redis, "expire", CoroutineMock())
+    monkeypatch.setattr(mock_redis, "setex", CoroutineMock())
     await queue.add_message(key, msg)
-    added_queue = await queue.message_count_for_key(key)
-    assert added_queue == initial_queue + 1
+    mock_redis.rpush.assert_called_once()
+    mock_redis.expire.assert_called_once()
+    mock_redis.setex.assert_called_once()
 
-    message_for_key = await queue.has_message_for_key(key)
-    assert message_for_key
 
-    message_count = await queue.message_count_for_key(key)
-    assert message_count == await queue.message_count_for_key(key)
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("lindex_ret", "expected"), [(None, False), (1, True)])
+async def test_has_message_for_key(
+    queue: RedisPersistedQueue,
+    key: str,
+    mock_redis: mock.MagicMock,
+    lindex_ret: Any,
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(mock_redis, "lindex", CoroutineMock(return_value=lindex_ret))
+    assert await queue.has_message_for_key(key) == expected
+    mock_redis.lindex.assert_called_once()
 
-    get_message_for_key = await queue.get_one_message_for_key(key)
-    assert str(get_message_for_key) == str(msg)
-    assert await queue.message_count_for_key(key) == 0
 
-    await queue.add_message(key, msg)
-    await queue.add_message(key, msg)
-    new_added_queue_len = await queue.message_count_for_key(key)
-    inspect_messages = await queue.inspect_all_messages_for_key(key)
-    assert inspect_messages
-    assert len(inspect_messages) == new_added_queue_len
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("msg_queue", "messages", "expected"),
+    [
+        ([], {}, None),
+        (
+            ["asdf"],
+            {"asdf": OutboundMessage(payload="asdf")},
+            OutboundMessage(payload="asdf"),
+        ),
+        (
+            ["1", "2"],
+            {"1": OutboundMessage(payload="1"), "2": OutboundMessage(payload="2")},
+            OutboundMessage(payload="1"),
+        ),
+        (
+            ["1", "2", "3"],
+            {"1": None, "2": None, "3": OutboundMessage(payload="3")},
+            OutboundMessage(payload="3"),
+        ),
+    ],
+)
+async def test_get_one_message_for_key(
+    queue: RedisPersistedQueue,
+    key: str,
+    mock_redis: mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    msg_queue: List[OutboundMessage],
+    messages: Dict[str, OutboundMessage],
+    expected: Optional[OutboundMessage],
+):
+    def _message_gen():
+        yield from msg_queue
 
-    remove_message = await queue.remove_message_for_key(key)
-    assert remove_message
-    assert await queue.message_count_for_key(key) == 1
+    generator = _message_gen()
+
+    async def _lpop(*args, **kwargs):
+        try:
+            return next(generator)
+        except StopIteration:
+            return None
+
+    async def _get(key: str):
+        if key not in messages or messages[key] is None:
+            return None
+        return json.dumps(msg_serialize(messages[key]))
+
+    monkeypatch.setattr(mock_redis, "lpop", _lpop)
+    monkeypatch.setattr(mock_redis, "get", _get)
+    monkeypatch.setattr(mock_redis, "delete", CoroutineMock())
+    msg = await queue.get_one_message_for_key(key)
+    if expected is None:
+        assert expected == msg
+    else:
+        assert msg
+        assert msg_serialize(expected) == msg_serialize(msg)

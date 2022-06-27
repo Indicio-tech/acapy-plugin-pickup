@@ -85,5 +85,4 @@ services:
     depends_on:
       - acapy_pickup
       - echo
-      - redis 
-      
+      - redis
