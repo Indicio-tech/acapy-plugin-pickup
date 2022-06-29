@@ -59,6 +59,9 @@ jobs:
     - name: Run integration tests
       run: |
         docker-compose -f ./int/docker-compose.yml run tests
+    - name: Run redis integration tests
+      run: | 
+        docker-compose -f ./int/redis/docker-compose.yml run tests
     - name: Print logs on failure
       if: failure()
       run: |
