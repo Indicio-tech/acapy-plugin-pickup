@@ -8,7 +8,9 @@ from datetime import timedelta
 from hashlib import sha256
 import json
 import logging
-from typing import List, Optional, Sequence, Set, cast, Dict, Any
+from typing import List, Optional, Union, Sequence, Set, cast, Dict, Any
+
+from base58 import b58encode
 
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.messaging.request_context import RequestContext
@@ -184,7 +186,7 @@ class UndeliveredInterface(ABC):
         """Count of queued messages by key."""
 
     @abstractmethod
-    async def get_one_message_for_key(self, key: str):
+    async def get_messages_for_key(self, key: str, count: int):
         """Remove and return a matching message."""
 
     @abstractmethod
@@ -211,6 +213,20 @@ class RedisPersistedQueue(UndeliveredInterface):
         messages are stored at db[sha(message.payload)]
         queue is stored db[recipient_key] where the value is a list of
             sha(message.payload)
+
+        msg_queue is SortedSet[Hashed(OutboundMessage.enc_payload)]
+        messages is Dict[Hashed(OutboundMessage.enc_payload), serialized(OutboundMessage)]
+
+        For example, suppose the following:
+            msg_queue [1, 2, 3, 4, 5]
+
+        if msgs 1, 2, 3 are expired
+        then
+            msgs[1] == None
+            msgs[2] == None
+            msgs[3] == None
+            msgs[4] == Some
+            msgs[5] == Some
     """
 
     def __init__(self, redis: aioredis.Redis) -> None:
@@ -222,8 +238,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         """
 
         self.queue_by_key = redis  # Queue of messages and corresponding keys
-        self.ttl_seconds = 60 * 60 * 24 * 7  # one week
-        self.exmessage_seconds = 60 * 60 * 24 * 3  # three days
+        self.ttl_seconds = 60 * 60 * 24 * 3  # three days
 
     async def add_message(self, key: str, msg: OutboundMessage):
         """
@@ -235,15 +250,20 @@ class RedisPersistedQueue(UndeliveredInterface):
             msg: The OutboundMessage to add
         """
 
-        msg_key = sha256(
-            msg.payload.encode("utf-8") if isinstance(msg.payload, str) else msg.payload
-        ).digest()
+        msg_ident = b58encode(
+            sha256(
+                msg.enc_payload.encode("utf-8")
+                if isinstance(msg.enc_payload, str)
+                else msg.enc_payload
+            ).digest()
+        ).decode("utf-8")
+        msg_score = time.time()
 
-        await self.queue_by_key.rpush(key, msg_key)
+        await self.queue_by_key.zadd(key, {msg_ident: msg_score}, nx=True)
         await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
         await self.queue_by_key.setex(
-            msg_key,
-            timedelta(seconds=self.exmessage_seconds),
+            msg_ident,
+            timedelta(seconds=self.ttl_seconds),
             json.dumps(msg_serialize(msg)),
         )
 
@@ -253,8 +273,8 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_key = await self.queue_by_key.lindex(key, 0)
-        return bool(msg_key)
+        msg_ident = await self.queue_by_key.zrange(key, 0, 0)
+        return bool(msg_ident)
 
     async def message_count_for_key(self, key: str):
         """
@@ -262,27 +282,23 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        return await self.queue_by_key.llen(key)
+        return await self.queue_by_key.zcount(key, 0, -1)
 
-    async def get_one_message_for_key(self, key: str):
+    async def get_messages_for_key(self, key: str, count: int):
         """
         Remove and return a matching message.
         Args:
             key: The key to use for lookup
         """
-        msg_key = await self.queue_by_key.lpop(key)
-        msg = None
+        msg_idents = await self.queue_by_key.zrange(key, 0, count)
+        msgs = await self.queue_by_key.mget(msg_idents)
 
-        while msg is None and msg_key is not None:
-            msg = await self.queue_by_key.get(msg_key)
-            await self.queue_by_key.delete(msg_key)
-            if msg is None:
-                msg_key = await self.queue_by_key.lpop(key)
+        msgs = [msg for msg in msgs if msg is not None]
 
-        if msg is None:
-            return None
+        expired = [msg for msg in msgs if msg is None]
+        await self.queue_by_key.zrem(*expired)
 
-        return msg_deserialize(json.loads(msg))
+        return [msg_deserialize(json.loads(msg)) for msg in msgs]
 
     async def inspect_all_messages_for_key(self, key: str):
         """
@@ -290,29 +306,42 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_keys = await self.queue_by_key.lrange(key, 0, -1)
-        if msg_keys:
-            msgs = [await self.queue_by_key.get(msg_key) for msg_key in msg_keys]
+        msg_idents = await self.queue_by_key.zrange(key, 0, -1)
+        if msg_idents:
+            msgs = [await self.queue_by_key.get(msg_ident) for msg_ident in msg_idents]
             msgs = [msg_deserialize(json.loads(msg)) for msg in msgs if msg]
             return msgs
         return []
 
-    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
+    def message_id_for_outbound(self, msg: OutboundMessage) -> str:
+        return b58encode(
+            sha256(
+                msg.payload.encode("utf-8")
+                if isinstance(msg.payload, str)
+                else msg.payload
+            ).digest()
+        ).decode("utf-8")
+
+    async def remove_message_for_key(
+        self, key: str, *msgs: Union[OutboundMessage, str]
+    ):
         """
         Remove specified message from queue for key.
         Args:
             key: The key to use for lookup
             msg: The message to remove from the queue
         """
-        msg_key = sha256(
-            msg.payload.encode("utf-8") if isinstance(msg.payload, str) else msg.payload
-        ).digest()
-
-        await self.queue_by_key.lrem(key, 1, msg_key)
-        await self.queue_by_key.delete(msg_key)
+        homogenized_msg_idents = [
+            self.message_id_for_outbound(msg)
+            if isinstance(msg, OutboundMessage)
+            else msg
+            for msg in msgs
+        ]
+        await self.queue_by_key.zrem(key, *homogenized_msg_idents)
+        await self.queue_by_key.delete(*homogenized_msg_idents)
 
     async def flush_messages(self, key: str) -> Sequence[OutboundMessage]:
-        messages = await self.queue_by_key.lrange(key, 0, -1)
+        messages = await self.queue_by_key.zrange(key, 0, -1)
         await self.queue_by_key.delete(key)
         return messages
 
