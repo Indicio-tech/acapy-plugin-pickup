@@ -3,9 +3,9 @@
 import logging
 from typing import Optional
 
+from acapy_plugin_pickup.protocol.delivery import UndeliveredInterface
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
-from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 
 from ..acapy import AgentMessage
 from ..acapy.error import HandlerException
@@ -30,9 +30,8 @@ class StatusRequest(AgentMessage):
                 "route set to all"
             )
         recipient_key = self.recipient_key
-        manager = context.inject(InboundTransportManager)
-        assert manager
-        count = manager.undelivered_queue.message_count_for_key(
+        queue = context.inject(UndeliveredInterface)
+        count = queue.message_count_for_key(
             recipient_key or context.message_receipt.sender_verkey
         )
         response = Status(message_count=count, recipient_key=recipient_key)

@@ -2,14 +2,19 @@
 
 import logging
 import re
-from redis import asyncio as aioredis
-
-from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue
+from typing import cast
 
 from aries_cloudagent.config.injection_context import InjectionContext
 from aries_cloudagent.core.event_bus import Event, EventBus
 from aries_cloudagent.core.profile import Profile
 from aries_cloudagent.core.protocol_registry import ProtocolRegistry
+from aries_cloudagent.transport.outbound.message import OutboundMessage
+from redis import asyncio as aioredis
+
+from acapy_plugin_pickup.protocol.delivery import (
+    RedisPersistedQueue,
+    UndeliveredInterface,
+)
 
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
@@ -20,8 +25,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def setup(context: InjectionContext):
-    LOGGER.debug("Hit Pickup Plugin setup")
     """Setup plugin."""
+
     protocol_registry = context.inject(ProtocolRegistry)
     assert protocol_registry
     protocol_registry.register_message_types(
@@ -39,12 +44,13 @@ async def setup(context: InjectionContext):
     event_bus.subscribe(UNDELIVERABLE_EVENT_TOPIC, undeliverable)
 
     queue = RedisPersistedQueue(redis=await aioredis.from_url("redis://localhost"))
-    context.injector.bind_instance(RedisPersistedQueue, queue)
+    context.injector.bind_instance(UndeliveredInterface, queue)
 
 
 async def undeliverable(profile: Profile, event: Event):
     LOGGER.debug(
         "Undeliverable Event Captured in Pickup Protocol: ", event.topic, event.payload
     )
-    queue = profile.inject(RedisPersistedQueue)
-    queue.add_message(event.payload)
+    outbound = cast(OutboundMessage, event.payload)
+    queue = profile.inject(UndeliveredInterface)
+    queue.add_message(msg=outbound)
