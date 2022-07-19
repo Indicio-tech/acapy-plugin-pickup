@@ -1,16 +1,13 @@
 """Delivery Request and wrapper message for Pickup Protocol."""
 
-from abc import ABC, abstractmethod
-from redis import asyncio as aioredis
 import copy
-import time
-from datetime import timedelta
-from hashlib import sha256
 import json
 import logging
-from typing import List, Optional, Union, Sequence, Set, cast, Dict, Any
-
-from base58 import b58encode
+import time
+from abc import ABC, abstractmethod
+from datetime import timedelta
+from hashlib import sha256
+from typing import Any, Dict, List, Optional, Sequence, Set, Union, cast
 
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.messaging.request_context import RequestContext
@@ -19,7 +16,9 @@ from aries_cloudagent.transport.inbound.manager import InboundTransportManager
 from aries_cloudagent.transport.inbound.session import InboundSession
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
+from base58 import b58encode
 from pydantic import Field
+from redis import asyncio as aioredis
 from typing_extensions import Annotated
 
 from ..acapy import AgentMessage, Attach
@@ -98,22 +97,16 @@ class DeliveryRequest(AgentMessage):
             )
 
         wire_format = context.inject(BaseWireFormat)
-        manager = context.inject(InboundTransportManager)
-        assert manager
-        queue = manager.undelivered_queue
+        queue = context.inject(UndeliveredInterface)
+
         key = context.message_receipt.sender_verkey
         message_attachments = []
 
         if queue.has_message_for_key(key):
-            session = self.determine_session(manager, key)
-            if session is None:
-                LOGGER.warning("No session available to deliver messages as requested")
-                return
 
-            returned_count = 0
             async with context.session() as profile_session:
 
-                for msg in get_messages_for_key(queue, key):
+                for msg in queue.get_messages_for_key(key=key, count=self.limit):
 
                     recipient_key = (
                         msg.target_list[0].recipient_keys
@@ -138,13 +131,9 @@ class DeliveryRequest(AgentMessage):
                         )
 
                     attached_msg = Attach.data_base64(
-                        ident=json.loads(msg.enc_payload)["tag"], value=msg.enc_payload
+                        ident=message_id_for_outbound(msg), value=msg.enc_payload
                     )
                     message_attachments.append(attached_msg)
-                    returned_count += 1
-
-                    if returned_count >= self.limit:
-                        break
 
             response = Delivery(message_attachments=message_attachments)
             response.assign_thread_from(self)
@@ -186,20 +175,18 @@ class UndeliveredInterface(ABC):
         """Count of queued messages by key."""
 
     @abstractmethod
-    async def get_messages_for_key(self, key: str, count: int):
-        """Remove and return a matching message."""
+    async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
+        """Return messages for the key up to the count specified."""
 
     @abstractmethod
     async def inspect_all_messages_for_key(self, key: str):
         """Return all messages for key."""
 
     @abstractmethod
-    async def remove_message_for_key(self, key: str, msg: OutboundMessage):
+    async def remove_messages_for_key(
+        self, key: str, *msgs: Union[OutboundMessage, str]
+    ):
         """Remove specified message from queue for key."""
-
-    @abstractmethod
-    async def flush_messages(self, key: str) -> Sequence[OutboundMessage]:
-        """Clear and return messages for key."""
 
 
 class RedisPersistedQueue(UndeliveredInterface):
@@ -214,8 +201,11 @@ class RedisPersistedQueue(UndeliveredInterface):
         queue is stored db[recipient_key] where the value is a list of
             sha(message.payload)
 
-        msg_queue is SortedSet[Hashed(OutboundMessage.enc_payload)]
-        messages is Dict[Hashed(OutboundMessage.enc_payload), serialized(OutboundMessage)]
+        msg_queue is receipient_key = SortedSet[Hashed(OutboundMessage.enc_payload)]
+        messages is Dict[
+            f"recipient_key:Hashed(OutboundMessage.enc_payload)",
+            serialized(OutboundMessage)
+        ]
 
         For example, suppose the following:
             msg_queue [1, 2, 3, 4, 5]
@@ -240,7 +230,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         self.queue_by_key = redis  # Queue of messages and corresponding keys
         self.ttl_seconds = 60 * 60 * 24 * 3  # three days
 
-    async def add_message(self, key: str, msg: OutboundMessage):
+    async def add_message(self, msg: OutboundMessage):
         """
         Add an OutboundMessage to delivery queue.
         The message is added once per recipient key
@@ -250,21 +240,24 @@ class RedisPersistedQueue(UndeliveredInterface):
             msg: The OutboundMessage to add
         """
 
-        msg_ident = b58encode(
-            sha256(
-                msg.enc_payload.encode("utf-8")
-                if isinstance(msg.enc_payload, str)
-                else msg.enc_payload
-            ).digest()
-        ).decode("utf-8")
+        keys = []
+        if msg.target:
+            keys.update(msg.target.recipient_keys)
+        if msg.reply_to_verkey:
+            keys.add(msg.reply_to_verkey)
+
+        msg_ident = message_id_for_outbound(msg=msg)
         msg_score = time.time()
+        serialized_msg = json.dumps(msg_serialize(msg))
+
+        key = keys[0]
 
         await self.queue_by_key.zadd(key, {msg_ident: msg_score}, nx=True)
         await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
         await self.queue_by_key.setex(
             msg_ident,
             timedelta(seconds=self.ttl_seconds),
-            json.dumps(msg_serialize(msg)),
+            serialized_msg,
         )
 
     async def has_message_for_key(self, key: str):
@@ -284,14 +277,15 @@ class RedisPersistedQueue(UndeliveredInterface):
         """
         return await self.queue_by_key.zcount(key, 0, -1)
 
-    async def get_messages_for_key(self, key: str, count: int):
+    async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
         """
-        Remove and return a matching message.
+        Return a number of messages for a key.
         Args:
             key: The key to use for lookup
+            count: the number of messages to return
         """
         msg_idents = await self.queue_by_key.zrange(key, 0, count)
-        msgs = await self.queue_by_key.mget(msg_idents)
+        msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
 
         msgs = [msg for msg in msgs if msg is not None]
 
@@ -308,28 +302,21 @@ class RedisPersistedQueue(UndeliveredInterface):
         """
         msg_idents = await self.queue_by_key.zrange(key, 0, -1)
         if msg_idents:
-            msgs = [await self.queue_by_key.get(msg_ident) for msg_ident in msg_idents]
+            msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
             msgs = [msg_deserialize(json.loads(msg)) for msg in msgs if msg]
             return msgs
         return []
 
-    def message_id_for_outbound(self, msg: OutboundMessage) -> str:
-        return b58encode(
-            sha256(
-                msg.payload.encode("utf-8")
-                if isinstance(msg.payload, str)
-                else msg.payload
-            ).digest()
-        ).decode("utf-8")
-
-    async def remove_message_for_key(
+    async def remove_messages_for_key(
         self, key: str, *msgs: Union[OutboundMessage, str]
     ):
         """
         Remove specified message from queue for key.
         Args:
             key: The key to use for lookup
-            msg: The message to remove from the queue
+            msgs: Either (1) the message to remove from the queue
+                  or (2) the hash (as described in the above function)
+                  of the message payload, which serves as the identifier
         """
         homogenized_msg_idents = [
             self.message_id_for_outbound(msg)
@@ -338,40 +325,9 @@ class RedisPersistedQueue(UndeliveredInterface):
             for msg in msgs
         ]
         await self.queue_by_key.zrem(key, *homogenized_msg_idents)
-        await self.queue_by_key.delete(*homogenized_msg_idents)
-
-    async def flush_messages(self, key: str) -> Sequence[OutboundMessage]:
-        messages = await self.queue_by_key.zrange(key, 0, -1)
-        await self.queue_by_key.delete(key)
-        return messages
-
-
-class QueuedMessage:
-    """
-    Wrapper Class for queued messages.
-
-    Allows tracking Metadata.
-    """
-
-    def __init__(self, msg: OutboundMessage):
-        """
-        Create Wrapper for queued message.
-
-        Automatically sets timestamp on create.
-        """
-        self.msg = msg
-        self.timestamp = time.time()
-
-    def older_than(self, compare_timestamp: float) -> bool:
-        """
-        Age Comparison.
-
-        Allows you to test age as compared to the provided timestamp.
-
-        Args:
-            compare_timestamp: The timestamp to compare
-        """
-        return self.timestamp < compare_timestamp
+        await self.queue_by_key.delete(
+            *[msg_ident for msg_ident in homogenized_msg_idents]
+        )
 
 
 class DeliveryQueue:
@@ -387,21 +343,6 @@ class DeliveryQueue:
         """
 
         self.queue_by_key = {}
-        self.ttl_seconds = 604800  # one week
-
-    def expire_messages(self, ttl=None):
-        """
-        Expire messages that are past the time limit.
-        Args:
-            ttl: Optional. Allows override of configured ttl
-        """
-
-        ttl_seconds = ttl or self.ttl_seconds
-        horizon = time.time() - ttl_seconds
-        for key in self.queue_by_key.keys():
-            self.queue_by_key[key] = [
-                wm for wm in self.queue_by_key[key] if not wm.older_than(horizon)
-            ]
 
     def add_message(self, msg: OutboundMessage):
         """
@@ -410,16 +351,16 @@ class DeliveryQueue:
         Args:
             msg: The OutboundMessage to add
         """
-        keys = set()
+        keys = []
         if msg.target:
             keys.update(msg.target.recipient_keys)
         if msg.reply_to_verkey:
             keys.add(msg.reply_to_verkey)
-        wrapped_msg = QueuedMessage(msg)
-        for recipient_key in keys:
-            if recipient_key not in self.queue_by_key:
-                self.queue_by_key[recipient_key] = []
-            self.queue_by_key[recipient_key].append(wrapped_msg)
+
+        recipient_key = keys[0]
+        if recipient_key not in self.queue_by_key:
+            self.queue_by_key[recipient_key] = []
+        self.queue_by_key[recipient_key].append(msg)
 
     def has_message_for_key(self, key: str):
         """
@@ -442,14 +383,17 @@ class DeliveryQueue:
         else:
             return 0
 
-    def get_one_message_for_key(self, key: str):
+    def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
         """
-        Remove and return a matching message.
+        Return a matching message.
         Args:
             key: The key to use for lookup
+            count: the number of messages to return
         """
+
         if key in self.queue_by_key:
-            return self.queue_by_key[key].pop(0).msg
+            msgs = [msg for msg in self.queue_by_key[key][0:count]]
+            return msgs
 
     def inspect_all_messages_for_key(self, key: str):
         """
@@ -458,23 +402,23 @@ class DeliveryQueue:
             key: The key to use for lookup
         """
         if key in self.queue_by_key:
-            for wrapped_msg in self.queue_by_key[key]:
-                yield wrapped_msg.msg
+            for msg in self.queue_by_key[key]:
+                yield msg
 
-    def remove_message_for_key(self, key: str, msg: OutboundMessage):
+    def remove_messages_for_key(self, key: str, *msgs: Union[OutboundMessage, str]):
         """
         Remove specified message from queue for key.
         Args:
             key: The key to use for lookup
-            msg: The message to remove from the queue
+            msgs: The message to remove from the queue, or the hashes thereof
         """
-        if key in self.queue_by_key:
-            for wrapped_msg in self.queue_by_key[key]:
-                if wrapped_msg.msg == msg:
-                    self.queue_by_key[key].remove(wrapped_msg)
-                    if not self.queue_by_key[key]:
-                        del self.queue_by_key[key]
-                    break  # exit processing loop
+
+        self.queue_by_key[key][:] = [
+            queued_message
+            for queued_message in self.queue_by_key[key]
+            if queued_message.enc_payload is None
+            or message_id_for_outbound(queued_message) not in msgs
+        ]
 
 
 class MessagesReceived(AgentMessage):
@@ -491,56 +435,22 @@ class MessagesReceived(AgentMessage):
                 "route set to all"
             )
 
-        manager = context.inject(InboundTransportManager)
-        assert manager
-        queue = manager.undelivered_queue
+        queue = context.inject(UndeliveredInterface)
         key = context.message_receipt.sender_verkey
 
         if queue.has_message_for_key(key):
-            remove_message_by_tag_list(queue, key, self.message_id_list)
+            queue.remove_messages_for_key(key=key, msg=self.message_id_list)
 
         response = Status(message_count=queue.message_count_for_key(key))
         response.assign_thread_from(self)
         await responder.send_reply(response)
 
 
-def remove_message_by_tag(queue: DeliveryQueue, recipient_key: str, tag: str):
-    """Remove a message from a recipient's queue by tag.
-
-    Tag corresponds to a value in the encrypted payload which is unique for
-    each message.
-    """
-    return remove_message_by_tag_list(queue, recipient_key, {tag})
-
-
-def remove_message_by_tag_list(
-    queue: DeliveryQueue, recipient_key: str, tag_list: Set[str]
-):
-
-    # For debugging, logs the contents of each message as it's retrieved from the queue
-    for i in queue.queue_by_key[recipient_key]:
-        LOGGER.debug("%s", i.msg)
-
-    if recipient_key not in queue.queue_by_key:
-        return
-    LOGGER.debug(
-        "Removing messages with tags from queue: %s", queue.queue_by_key[recipient_key]
-    )
-    queue.queue_by_key[recipient_key][:] = [
-        queued_message
-        for queued_message in queue.queue_by_key[recipient_key]
-        if queued_message.msg.enc_payload is None
-        or json.loads(queued_message.msg.enc_payload)["tag"] not in tag_list
-    ]
-
-
-def get_messages_for_key(queue: DeliveryQueue, key: str) -> List[OutboundMessage]:
-    """
-    Return messages for a given key from the queue without removing them.
-
-    Args:
-        key: The key to use for lookup
-    """
-    if key in queue.queue_by_key:
-        return [queued.msg for queued in queue.queue_by_key[key]]
-    return []
+def message_id_for_outbound(self, msg: OutboundMessage) -> str:
+    return b58encode(
+        sha256(
+            msg.payload.encode("utf-8")
+            if isinstance(msg.enc_payload, str)
+            else msg.enc_payload
+        ).digest()
+    ).decode("utf-8")
