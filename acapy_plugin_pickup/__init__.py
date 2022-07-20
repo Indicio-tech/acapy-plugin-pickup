@@ -1,5 +1,6 @@
 """ACA-Py Pickup Protocol Plugin."""
 
+
 import logging
 import re
 from typing import cast
@@ -11,10 +12,8 @@ from aries_cloudagent.core.protocol_registry import ProtocolRegistry
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from redis import asyncio as aioredis
 
-from acapy_plugin_pickup.protocol.delivery import (
-    RedisPersistedQueue,
-    UndeliveredInterface,
-)
+from undelivered_queue.base import UndeliveredInterface
+from undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
