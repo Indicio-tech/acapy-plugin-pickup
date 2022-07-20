@@ -3,9 +3,10 @@
 import logging
 from typing import Optional
 
-from acapy_plugin_pickup.protocol.delivery import UndeliveredInterface
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
+
+from protocol.delivery import UndeliveredInterface
 
 from ..acapy import AgentMessage
 from ..acapy.error import HandlerException
