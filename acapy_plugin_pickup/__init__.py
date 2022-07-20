@@ -12,8 +12,8 @@ from aries_cloudagent.core.protocol_registry import ProtocolRegistry
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from redis import asyncio as aioredis
 
-from undelivered_queue.base import UndeliveredInterface
-from undelivered_queue.redis_persisted_queue import RedisPersistedQueue
+from .undelivered_queue.base import UndeliveredInterface
+from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
