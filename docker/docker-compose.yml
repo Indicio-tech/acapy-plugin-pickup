@@ -1,10 +1,12 @@
 version: "3"
 services:
+
   tunnel:
     image: dbluhm/agent-tunnel
     command: -s reverse-proxy:80 -p 4040 -h ${AGENT_TUNNEL_HOST}
     ports:
       - 4040:4040
+
   agent:
     image: acapy-pickup-mediator
     build:
@@ -18,6 +20,10 @@ services:
       /bin/sh -c '/acapy-endpoint.sh aca-py "$$@"' --
     command: >
       start --arg-file default.yml
+    depends_on:
+      redis:
+        condition: service_healthy
+  
   reverse-proxy:
     image: nginx:alpine
     restart: unless-stopped
@@ -28,20 +34,21 @@ services:
       - 80:80
     volumes:
       - ./mediator.conf.template:/etc/nginx/templates/default.conf.template:z
+    depends_on:
+      - agent
 
   redis:
     image: "redis:alpine"
-
     ports:
      - "6379:6379"
-
     volumes:
       - ./redis-data:/var/lib/redis
       - ./redis.conf:/etc/redis/redis.conf
-
     environment:
      - REDIS_REPLICATION_MODE=master
-
-    networks:
-      node_net:
-        ipv4_address: 172.28.1.4
+    healthcheck:
+      test: nc -z localhost 6379 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

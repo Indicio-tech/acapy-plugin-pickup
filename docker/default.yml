@@ -15,7 +15,7 @@ inbound-transport:
 outbound-transport: http
 endpoint:
   - http://localhost:3000
-enable-undelivered-queue: true
+enable-undelivered-queue: false
 
 # Ledger
 no-ledger: true

@@ -5,7 +5,8 @@ from typing import Optional
 
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
-from aries_cloudagent.transport.inbound.manager import InboundTransportManager
+
+from ..protocol.delivery import UndeliveredInterface
 
 from ..acapy import AgentMessage
 from ..acapy.error import HandlerException
@@ -27,12 +28,11 @@ class StatusRequest(AgentMessage):
         if not self.transport or self.transport.return_route != "all":
             raise HandlerException(
                 "StatusRequest must have transport decorator with return "
-                "route set to all"
+                "route set to all."
             )
         recipient_key = self.recipient_key
-        manager = context.inject(InboundTransportManager)
-        assert manager
-        count = manager.undelivered_queue.message_count_for_key(
+        queue = context.inject(UndeliveredInterface)
+        count = await queue.message_count_for_key(
             recipient_key or context.message_receipt.sender_verkey
         )
         response = Status(message_count=count, recipient_key=recipient_key)
