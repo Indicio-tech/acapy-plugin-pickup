@@ -30,9 +30,9 @@ class InMemoryQueue(UndeliveredInterface):
         """
         keys = []
         if msg.target:
-            keys.update(msg.target.recipient_keys)
+            keys.extend(msg.target.recipient_keys)
         if msg.reply_to_verkey:
-            keys.add(msg.reply_to_verkey)
+            keys.append(msg.reply_to_verkey)
 
         recipient_key = keys[0]
         if recipient_key not in self.queue_by_key:
@@ -82,7 +82,9 @@ class InMemoryQueue(UndeliveredInterface):
             for msg in self.queue_by_key[key]:
                 yield msg
 
-    def remove_messages_for_key(self, key: str, *msgs: Union[OutboundMessage, str]):
+    def remove_messages_for_key(
+        self, key: str, msgs: List[Union[OutboundMessage, str]]
+    ):
         """
         Remove specified message from queue for key.
         Args:

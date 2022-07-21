@@ -16,6 +16,7 @@ services:
       dockerfile: ./docker/Dockerfile
     environment:
       ACAPY_TOOLBOX_LOG_LEVEL: DEBUG
+      REDIS_ENDPOINT: redis://redis:6379
     ports:
       - "3001:3001"
     command: >
@@ -26,7 +27,6 @@ services:
         --plugin acapy_plugin_pickup
         --no-ledger
         --log-level debug
-        --enable-undelivered-queue
         --wallet-type indy
         --wallet-name test
         --wallet-key test

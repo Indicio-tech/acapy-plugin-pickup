@@ -33,16 +33,16 @@ class UndeliveredInterface(ABC):
 
     @abstractmethod
     async def remove_messages_for_key(
-        self, key: str, *msgs: Union[OutboundMessage, str]
+        self, key: str, msgs: List[Union[OutboundMessage, str]]
     ):
         """Remove specified message from queue for key."""
 
 
-def message_id_for_outbound(self, msg: OutboundMessage) -> str:
+def message_id_for_outbound(msg: OutboundMessage) -> str:
     """Return a hash of an OutboundMessage to be used as the message identifier."""
     return b58encode(
         sha256(
-            msg.payload.encode("utf-8")
+            msg.enc_payload.encode("utf-8")
             if isinstance(msg.enc_payload, str)
             else msg.enc_payload
         ).digest()

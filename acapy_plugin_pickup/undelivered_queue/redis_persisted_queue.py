@@ -108,9 +108,9 @@ class RedisPersistedQueue(UndeliveredInterface):
 
         keys = []
         if msg.target:
-            keys.update(msg.target.recipient_keys)
+            keys.extend(msg.target.recipient_keys)
         if msg.reply_to_verkey:
-            keys.add(msg.reply_to_verkey)
+            keys.append(msg.reply_to_verkey)
 
         msg_ident = message_id_for_outbound(msg=msg)
         msg_score = time.time()
@@ -141,7 +141,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        return await self.queue_by_key.zcount(key, 0, -1)
+        return await self.queue_by_key.zcard(key)
 
     async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
         """
@@ -150,13 +150,14 @@ class RedisPersistedQueue(UndeliveredInterface):
             key: The key to use for lookup
             count: the number of messages to return
         """
-        msg_idents = await self.queue_by_key.zrange(key, 0, count)
+        msg_idents = await self.queue_by_key.zrange(key, 0, count - 1)
         msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
 
         msgs = [msg for msg in msgs if msg is not None]
 
         expired = [msg for msg in msgs if msg is None]
-        await self.queue_by_key.zrem(*expired)
+        if expired:
+            await self.queue_by_key.zrem(key, *expired)
 
         return [msg_deserialize(json.loads(msg)) for msg in msgs]
 
@@ -174,7 +175,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         return []
 
     async def remove_messages_for_key(
-        self, key: str, *msgs: Union[OutboundMessage, str]
+        self, key: str, msgs: List[Union[OutboundMessage, str]]
     ):
         """
         Remove specified message from queue for key.
@@ -185,12 +186,9 @@ class RedisPersistedQueue(UndeliveredInterface):
                   of the message payload, which serves as the identifier
         """
         homogenized_msg_idents = [
-            self.message_id_for_outbound(msg)
-            if isinstance(msg, OutboundMessage)
-            else msg
+            message_id_for_outbound(msg) if isinstance(msg, OutboundMessage) else msg
             for msg in msgs
         ]
-        await self.queue_by_key.zrem(key, *homogenized_msg_idents)
-        await self.queue_by_key.delete(
-            *[msg_ident for msg_ident in homogenized_msg_idents]
-        )
+        if homogenized_msg_idents:
+            await self.queue_by_key.zrem(key, *homogenized_msg_idents)
+            await self.queue_by_key.delete(*homogenized_msg_idents)
