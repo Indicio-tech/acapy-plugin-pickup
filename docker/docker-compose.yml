@@ -18,6 +18,9 @@ services:
       /bin/sh -c '/acapy-endpoint.sh aca-py "$$@"' --
     command: >
       start --arg-file default.yml
+      --plugin-config-value pickup.persistence=redis
+      --plugin-config-value pickup.ttl=168 
+      --plugin-config-value pickup.redis.server=redis://localhost:6379/0
   reverse-proxy:
     image: nginx:alpine
     restart: unless-stopped
@@ -28,3 +31,16 @@ services:
       - 80:80
     volumes:
       - ./mediator.conf.template:/etc/nginx/templates/default.conf.template:z
+
+  redis:
+    image: "redis:alpine"
+
+    ports:
+     - "6379:6379"
+
+    volumes:
+      - ./redis-data:/var/lib/redis
+      - ./redis.conf:/etc/redis/redis.conf
+
+    environment:
+     - REDIS_REPLICATION_MODE=master
