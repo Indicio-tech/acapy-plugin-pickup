@@ -19,16 +19,16 @@ class InMemoryQueue(UndeliveredInterface):
         This uses an in memory structure to queue messages.
         """
 
-        self.queue_by_key = {}
+        self.queue_by_key: dict[str, List[OutboundMessage]] = {}
 
-    def add_message(self, msg: OutboundMessage):
+    async def add_message(self, msg: OutboundMessage):
         """
         Add an OutboundMessage to delivery queue.
         The message is added once per recipient key
         Args:
             msg: The OutboundMessage to add
         """
-        keys = []
+        keys: List[str] = []
         if msg.target:
             keys.extend(msg.target.recipient_keys)
         if msg.reply_to_verkey:
@@ -39,7 +39,7 @@ class InMemoryQueue(UndeliveredInterface):
             self.queue_by_key[recipient_key] = []
         self.queue_by_key[recipient_key].append(msg)
 
-    def has_message_for_key(self, key: str):
+    async def has_message_for_key(self, key: str):
         """
         Check for queued messages by key.
         Args:
@@ -49,7 +49,7 @@ class InMemoryQueue(UndeliveredInterface):
             return True
         return False
 
-    def message_count_for_key(self, key: str):
+    async def message_count_for_key(self, key: str):
         """
         Count of queued messages by key.
         Args:
@@ -60,7 +60,7 @@ class InMemoryQueue(UndeliveredInterface):
         else:
             return 0
 
-    def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
+    async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
         """
         Return a matching message.
         Args:
@@ -71,18 +71,17 @@ class InMemoryQueue(UndeliveredInterface):
         if key in self.queue_by_key:
             msgs = [msg for msg in self.queue_by_key[key][0:count]]
             return msgs
+        return []
 
-    def inspect_all_messages_for_key(self, key: str):
+    async def inspect_all_messages_for_key(self, key: str):
         """
         Return all messages for key.
         Args:
             key: The key to use for lookup
         """
-        if key in self.queue_by_key:
-            for msg in self.queue_by_key[key]:
-                yield msg
+        return [msg for msg in self.queue_by_key[key]]
 
-    def remove_messages_for_key(
+    async def remove_messages_for_key(
         self, key: str, msgs: List[Union[OutboundMessage, str]]
     ):
         """

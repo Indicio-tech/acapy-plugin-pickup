@@ -12,15 +12,15 @@ class UndeliveredInterface(ABC):
     """Interface for undelivered message queue."""
 
     @abstractmethod
-    async def add_message(self, msg: OutboundMessage):
+    async def add_message(self, msg: OutboundMessage) -> None:
         """Add an OutboundMessage to delivery queue."""
 
     @abstractmethod
-    async def has_message_for_key(self, key: str):
+    async def has_message_for_key(self, key: str) -> bool:
         """Check for queued messages by key."""
 
     @abstractmethod
-    async def message_count_for_key(self, key: str):
+    async def message_count_for_key(self, key: str) -> int:
         """Count of queued messages by key."""
 
     @abstractmethod
@@ -28,7 +28,9 @@ class UndeliveredInterface(ABC):
         """Return messages for the key up to the count specified."""
 
     @abstractmethod
-    async def inspect_all_messages_for_key(self, key: str):
+    async def inspect_all_messages_for_key(
+        self, key: str
+    ) -> Union[List[OutboundMessage], None]:
         """Return all messages for key."""
 
     @abstractmethod

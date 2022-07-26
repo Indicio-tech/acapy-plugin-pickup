@@ -41,7 +41,7 @@ def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
     return outbound_dict
 
 
-def msg_deserialize(value: dict) -> OutboundMessage:
+def msg_deserialize(value: Dict[str, Any]) -> OutboundMessage:
     """Deserialize outbound message object."""
     value = copy.deepcopy(value)
     if "target" in value and value["target"]:
@@ -106,7 +106,7 @@ class RedisPersistedQueue(UndeliveredInterface):
             msg: The OutboundMessage to add
         """
 
-        keys = []
+        keys: List[str] = []
         if msg.target:
             keys.extend(msg.target.recipient_keys)
         if msg.reply_to_verkey:
@@ -132,7 +132,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        msg_ident = await self.queue_by_key.zrange(key, 0, 0)
+        msg_ident: str = await self.queue_by_key.zrange(key, 0, 0)
         return bool(msg_ident)
 
     async def message_count_for_key(self, key: str):
@@ -141,7 +141,8 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
-        return await self.queue_by_key.zcard(key)
+        count: int = await self.queue_by_key.zcard(key)
+        return count
 
     async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
         """
@@ -150,7 +151,7 @@ class RedisPersistedQueue(UndeliveredInterface):
             key: The key to use for lookup
             count: the number of messages to return
         """
-        msg_idents = await self.queue_by_key.zrange(key, 0, count - 1)
+        msg_idents: str = await self.queue_by_key.zrange(key, 0, count - 1)
         msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
 
         msgs = [msg for msg in msgs if msg is not None]
