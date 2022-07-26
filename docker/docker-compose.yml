@@ -6,6 +6,8 @@ services:
     command: -s reverse-proxy:80 -p 4040 -h ${AGENT_TUNNEL_HOST}
     ports:
       - 4040:4040
+    depends_on:
+      - reverse-proxy
 
   agent:
     image: acapy-pickup-mediator
