@@ -1,16 +1,13 @@
-from email import message_from_string
 import json
-from pyexpat.errors import messages
 from typing import Any, Dict, List, Optional
-from acapy_plugin_pickup.acapy import message
-import pytest
 from unittest import mock
-from redis.asyncio import Redis
 
-from acapy_plugin_pickup.protocol.redis_queue import RedisPersistedQueue, msg_serialize
-from aries_cloudagent.transport.outbound.message import OutboundMessage
+import pytest
+from acapy_plugin_pickup.protocol.delivery import RedisPersistedQueue, msg_serialize
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
-from requests import delete
+from aries_cloudagent.transport.outbound.message import OutboundMessage
+from pyexpat.errors import messages
+from redis.asyncio import Redis
 
 
 @pytest.fixture
@@ -153,12 +150,16 @@ async def test_get_one_message_for_key(
         ([], {}, []),
         (
             ["1", "2", "3"],
-            {"1": OutboundMessage(payload="1"), 
-            "2": OutboundMessage(payload="2"), 
-            "3": OutboundMessage(payload="3")},
-            [OutboundMessage(payload="1"), 
-            OutboundMessage(payload="2"), 
-            OutboundMessage(payload="3")]
+            {
+                "1": OutboundMessage(payload="1"),
+                "2": OutboundMessage(payload="2"),
+                "3": OutboundMessage(payload="3"),
+            },
+            [
+                OutboundMessage(payload="1"),
+                OutboundMessage(payload="2"),
+                OutboundMessage(payload="3"),
+            ],
         ),
     ],
 )
@@ -169,7 +170,7 @@ async def test_inspect_all_messages_for_key(
     monkeypatch: pytest.MonkeyPatch,
     msg_queue: List[OutboundMessage],
     messages: Dict[str, OutboundMessage],
-    expected: List[OutboundMessage]
+    expected: List[OutboundMessage],
 ):
     async def _mget(key: str):
         return [json.dumps(msg_serialize(message)) for message in messages.values()]
@@ -189,9 +190,9 @@ async def test_remove_message_for_key(
     key: str,
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
-    msg: OutboundMessage
+    msg: OutboundMessage,
 ):
-    async def _lrem(key:str, count:int, msg_key):
+    async def _lrem(key: str, count: int, msg_key):
         if key not in messages or messages[key] is None:
             return None
         messages_left = count
@@ -217,9 +218,11 @@ async def test_remove_message_for_key(
     [
         (
             ["1", "2", "3"],
-            [OutboundMessage(payload="1"), 
-            OutboundMessage(payload="2"), 
-            OutboundMessage(payload="3")]
+            [
+                OutboundMessage(payload="1"),
+                OutboundMessage(payload="2"),
+                OutboundMessage(payload="3"),
+            ],
         ),
     ],
 )
@@ -229,13 +232,13 @@ async def test_flush_messages(
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
     msg_queue: List[OutboundMessage],
-    message_list: List[OutboundMessage]
+    message_list: List[OutboundMessage],
 ):
     monkeypatch.setattr(
-        RedisPersistedQueue, 
-        "inspect_all_messages_for_key", 
-        CoroutineMock(return_value=message_list)
-        )
+        RedisPersistedQueue,
+        "inspect_all_messages_for_key",
+        CoroutineMock(return_value=message_list),
+    )
     monkeypatch.setattr(mock_redis, "lrange", CoroutineMock(return_value=msg_queue))
     del_mock = CoroutineMock()
     monkeypatch.setattr(mock_redis, "delete", del_mock)
