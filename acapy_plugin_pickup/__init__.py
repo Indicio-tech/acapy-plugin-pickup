@@ -18,6 +18,7 @@ from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
 from .protocol.status import Status, StatusRequest
 from .undelivered_queue.base import UndeliveredInterface
+from .undelivered_queue.in_memory_queue import InMemoryQueue
 from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
@@ -26,6 +27,7 @@ REDIS_ENDPOINT = getenv("REDIS_ENDPOINT", "redis://redis:6379")
 
 
 async def setup(context: InjectionContext):
+    LOGGER.debug("Hit Pickup Plugin setup")
     """Setup plugin."""
 
     protocol_registry = context.inject(ProtocolRegistry)
@@ -44,8 +46,19 @@ async def setup(context: InjectionContext):
     event_bus = context.inject(EventBus)
     event_bus.subscribe(UNDELIVERABLE_EVENT_TOPIC, undeliverable)
 
-    queue = RedisPersistedQueue(redis=await aioredis.from_url(REDIS_ENDPOINT))
-    context.injector.bind_instance(UndeliveredInterface, queue)
+    settings = context.settings.for_plugin("pickup")
+    persistence = settings.get("persistence")
+    redis_uri = settings.get("redis.server")
+    ttl = settings.get("ttl")
+
+    if persistence == "mem":
+        queue = InMemoryQueue()
+    elif persistence == "redis":
+        queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl=ttl)
+    else:
+        raise ValueError()
+    
+    context.injector.bind_instance(RedisPersistedQueue, queue)
 
 
 async def undeliverable(profile: Profile, event: Event):

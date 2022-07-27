@@ -22,6 +22,9 @@ services:
       /bin/sh -c '/acapy-endpoint.sh aca-py "$$@"' --
     command: >
       start --arg-file default.yml
+        --plugin-config-value pickup.persistence=redis
+        --plugin-config-value pickup.ttl=168 
+        --plugin-config-value pickup.redis.server=redis://localhost:6379/0
     depends_on:
       redis:
         condition: service_healthy
