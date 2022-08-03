@@ -3,7 +3,10 @@ from typing import Any, Dict, List, Optional
 from unittest import mock
 
 import pytest
-from acapy_plugin_pickup.undelivered_queue.redis_persisted_queue import RedisPersistedQueue, msg_serialize
+from acapy_plugin_pickup.undelivered_queue.redis_persisted_queue import (
+    RedisPersistedQueue,
+    msg_serialize,
+)
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from pyexpat.errors import messages
@@ -30,7 +33,7 @@ def msg(target):
         target_list=[],
         reply_from_verkey="reply_from_verkey",
         payload="payload",
-        enc_payload="the_cooler_payload"
+        enc_payload="the_cooler_payload",
     )
 
 
@@ -97,12 +100,19 @@ async def test_has_message_for_key(
         ),
         (
             ["1", "2"],
-            {"1": OutboundMessage(payload="1", connection_id="conn_id1"), "2": OutboundMessage(payload="2", connection_id="conn_id2")},
+            {
+                "1": OutboundMessage(payload="1", connection_id="conn_id1"),
+                "2": OutboundMessage(payload="2", connection_id="conn_id2"),
+            },
             OutboundMessage(payload="1", connection_id="conn_id1"),
         ),
         (
             ["1", "2", "3"],
-            {"1": None, "2": None, "3": OutboundMessage(payload="3", connection_id="conn_id3")},
+            {
+                "1": None,
+                "2": None,
+                "3": OutboundMessage(payload="3", connection_id="conn_id3"),
+            },
             OutboundMessage(payload="3", connection_id="conn_id3"),
         ),
     ],
@@ -125,7 +135,11 @@ async def test_get_messages_for_key(
 
     async def _mget(key: str):
 
-        return [json.dumps(msg_serialize(message)) for message in messages.values() if message is not None]
+        return [
+            json.dumps(msg_serialize(message))
+            for message in messages.values()
+            if message is not None
+        ]
 
     monkeypatch.setattr(mock_redis, "zrange", CoroutineMock(return_value=msg_queue))
     monkeypatch.setattr(mock_redis, "mget", _mget)

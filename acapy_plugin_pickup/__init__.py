@@ -57,7 +57,7 @@ async def setup(context: InjectionContext):
         queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl=ttl)
     else:
         raise ValueError()
-    
+
     context.injector.bind_instance(RedisPersistedQueue, queue)
 
 
