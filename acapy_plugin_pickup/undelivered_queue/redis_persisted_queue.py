@@ -2,15 +2,18 @@
 
 import copy
 import json
+import logging
 import time
 from datetime import timedelta
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Optional
 
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from redis import asyncio as aioredis
 
 from .base import UndeliveredInterface, message_id_for_outbound
+
+LOGGER = logging.getLogger(__name__)
 
 
 def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
@@ -85,16 +88,19 @@ class RedisPersistedQueue(UndeliveredInterface):
             msgs[5] == Some
     """
 
-    def __init__(self, redis: aioredis.Redis) -> None:
+    def __init__(
+        self, redis: aioredis.Redis, ttl_seconds: Optional[int] = None
+    ) -> None:
         """
         Initialize an instance of PersistenceQueue.
         This uses an in memory structure to queue messages,
         though the active Redis server prevents losing
         the queue should your machine turn off.
         """
-
+        if ttl_seconds <= 0:
+            raise ValueError("Time to live must be a positive integer")
         self.queue_by_key = redis  # Queue of messages and corresponding keys
-        self.ttl_seconds = 60 * 60 * 24 * 3  # three days
+        self.ttl_seconds = ttl_seconds or 60 * 60 * 24 * 3  # three days
 
     async def add_message(self, msg: OutboundMessage):
         """
@@ -141,6 +147,9 @@ class RedisPersistedQueue(UndeliveredInterface):
         Args:
             key: The key to use for lookup
         """
+
+        await self.expire_helper(key)
+
         count: int = await self.queue_by_key.zcard(key)
         return count
 
@@ -151,14 +160,11 @@ class RedisPersistedQueue(UndeliveredInterface):
             key: The key to use for lookup
             count: the number of messages to return
         """
+
+        await self.expire_helper(key)
+
         msg_idents: str = await self.queue_by_key.zrange(key, 0, count - 1)
         msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
-
-        msgs = [msg for msg in msgs if msg is not None]
-
-        expired = [msg for msg in msgs if msg is None]
-        if expired:
-            await self.queue_by_key.zrem(key, *expired)
 
         return [msg_deserialize(json.loads(msg)) for msg in msgs]
 
@@ -193,3 +199,11 @@ class RedisPersistedQueue(UndeliveredInterface):
         if homogenized_msg_idents:
             await self.queue_by_key.zrem(key, *homogenized_msg_idents)
             await self.queue_by_key.delete(*homogenized_msg_idents)
+
+    async def expire_helper(self, key):
+        # TODO: This may need alterations when we have the queue refresh conversation
+        msg_idents = await self.queue_by_key.zrange(
+            key, 0, (time.time() - self.ttl_seconds), byscore=True
+        )
+        if msg_idents:
+            await self.queue_by_key.zrem(key, *msg_idents)
