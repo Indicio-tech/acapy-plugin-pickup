@@ -97,7 +97,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         though the active Redis server prevents losing
         the queue should your machine turn off.
         """
-        if ttl_seconds <= 0:
+        if ttl_seconds is not None and ttl_seconds <= 0:
             raise ValueError("Time to live must be a positive integer")
         self.queue_by_key = redis  # Queue of messages and corresponding keys
         self.ttl_seconds = ttl_seconds or 60 * 60 * 24 * 3  # three days
