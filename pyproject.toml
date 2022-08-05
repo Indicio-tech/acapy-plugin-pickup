@@ -7,7 +7,7 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.9,<4.0"
-aries-cloudagent = { git = "https://github.com/Indicio-tech/aries-cloudagent-python.git", branch = "feature/undelivered-events" }
+aries-cloudagent = { version = "^0.7.4", extras = ["indy"]}
 # ACA-Py Optionals
 python3-indy = { version = ">=1.11.1<2", optional = true }
 pydantic = "^1.8.1"
