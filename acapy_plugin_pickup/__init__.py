@@ -59,17 +59,15 @@ async def setup(context: InjectionContext):
         queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl=ttl)
     else:
         raise ValueError()
-    
+
     context.injector.bind_instance(RedisPersistedQueue, queue)
 
 
 async def forward(profile: Profile, event: Event):
     LOGGER.debug(
-        "Forward Event Captured in Pickup Protocol: %s, %s",
-        event.topic,
-        event.payload,
+        "Forward Event Captured in Pickup Protocol: %s, %s", event.topic, event.payload
     )
-    
+
     outbound = cast(OutboundMessage, event.payload)
     # In this scenario we are explicitly listening for messages
     # forwarded from another agent, so we will always have
