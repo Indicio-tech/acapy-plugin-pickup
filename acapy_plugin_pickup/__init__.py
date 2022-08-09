@@ -22,6 +22,7 @@ from .undelivered_queue.in_memory_queue import InMemoryQueue
 from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
+FORWARD_EVENT_TOPIC = re.compile("acapy::forward::received")
 LOGGER = logging.getLogger(__name__)
 REDIS_ENDPOINT = getenv("REDIS_ENDPOINT", "redis://redis:6379")
 
@@ -45,6 +46,7 @@ async def setup(context: InjectionContext):
 
     event_bus = context.inject(EventBus)
     event_bus.subscribe(UNDELIVERABLE_EVENT_TOPIC, undeliverable)
+    event_bus.subscribe(FORWARD_EVENT_TOPIC, forward)
 
     settings = context.settings.for_plugin("pickup")
     persistence = settings.get("persistence")
@@ -59,6 +61,22 @@ async def setup(context: InjectionContext):
         raise ValueError()
     
     context.injector.bind_instance(RedisPersistedQueue, queue)
+
+
+async def forward(profile: Profile, event: Event):
+    LOGGER.debug(
+        "Forward Event Captured in Pickup Protocol: %s, %s",
+        event.topic,
+        event.payload,
+    )
+    
+    outbound = cast(OutboundMessage, event.payload)
+    # In this scenario we are explicitly listening for messages
+    # forwarded from another agent, so we will always have
+    # an enc_payload.
+
+    queue = profile.inject(UndeliveredInterface)
+    await queue.add_message(msg=outbound)
 
 
 async def undeliverable(profile: Profile, event: Event):
