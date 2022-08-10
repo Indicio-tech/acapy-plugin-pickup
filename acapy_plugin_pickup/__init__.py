@@ -48,17 +48,34 @@ async def setup(context: InjectionContext):
 
     settings = context.settings.for_plugin("pickup")
     persistence = settings.get("persistence")
-    redis_uri = settings.get("redis.server")
-    ttl = settings.get("ttl")
 
     if persistence == "mem":
         queue = InMemoryQueue()
     elif persistence == "redis":
-        queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl=ttl)
+        queue = await setup_redis(settings=settings)
     else:
-        raise ValueError()
-    
-    context.injector.bind_instance(RedisPersistedQueue, queue)
+        raise ValueError("Either mem or redis must be set.")
+
+    context.injector.bind_instance(UndeliveredInterface, queue)
+
+
+async def setup_redis(settings):
+    redis = settings.get("redis")
+
+    if not redis:
+        raise ValueError(
+            "If redis persistence is chosen, redis data must be specified."
+        )
+
+    ttl = redis.get("ttl_hours")
+    redis_uri = redis.get("server")
+
+    if not redis_uri:
+        raise ValueError("redis_uri must be specified.")
+
+    return RedisPersistedQueue(
+        redis=await aioredis.from_url(redis_uri), ttl_seconds=60 * 60 * ttl
+    )
 
 
 async def undeliverable(profile: Profile, event: Event):
