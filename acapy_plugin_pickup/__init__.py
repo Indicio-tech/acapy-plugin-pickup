@@ -23,6 +23,7 @@ from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
 FORWARD_EVENT_TOPIC = re.compile("acapy::forward::received")
+RECEIVED_EVENT_TOPIC = re.compile("acapy::inbound-message::received") #TODO: Find out the proper domain name 
 LOGGER = logging.getLogger(__name__)
 REDIS_ENDPOINT = getenv("REDIS_ENDPOINT", "redis://redis:6379")
 
@@ -50,7 +51,7 @@ async def setup(context: InjectionContext):
 
     settings = context.settings.for_plugin("pickup")
     persistence = settings.get("persistence")
-    redis_uri = settings.get("redis.server")
+    redis_uri = settings.get("redis_server")
     ttl = settings.get("ttl")
 
     if persistence == "mem":
@@ -67,8 +68,8 @@ async def forward(profile: Profile, event: Event):
     LOGGER.debug(
         "Forward Event Captured in Pickup Protocol: %s, %s", event.topic, event.payload
     )
-
     outbound = cast(OutboundMessage, event.payload)
+    LOGGER.debug("Plugin settings", event.payload, outbound)
     # In this scenario we are explicitly listening for messages
     # forwarded from another agent, so we will always have
     # an enc_payload.
