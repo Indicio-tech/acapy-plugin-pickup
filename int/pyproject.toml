@@ -8,7 +8,7 @@ authors = ["Micah Peltier <micah6_8@yahoo.com>"]
 python = "^3.7"
 pytest = "^6.2.5"
 pytest-asyncio = "^0.16.0"
-echo-agent = {git = "https://github.com/Indicio-tech/echo-agent.git", rev = "a82900c9e9d13c9285344c849000fe4850ff4fda", extras = ["client"]}
+echo-agent = {git = "https://github.com/Indicio-tech/echo-agent.git", rev = "v0.2.0", extras = ["client"]}
 acapy-client = {git = "https://github.com/Indicio-tech/acapy-client.git", rev = "0.7.4"}
 
 [tool.poetry.dev-dependencies]

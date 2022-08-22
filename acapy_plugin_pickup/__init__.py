@@ -3,6 +3,8 @@
 
 import logging
 import re
+import json
+from base64 import urlsafe_b64decode
 from os import getenv
 from typing import cast
 
@@ -88,5 +90,12 @@ async def undeliverable(profile: Profile, event: Event):
                 sender_key,
             )
 
+    protected_headers = json.loads(
+        urlsafe_b64decode(json.loads(outbound.enc_payload)["protected"])
+    )
+
     queue = profile.inject(UndeliveredInterface)
-    await queue.add_message(msg=outbound)
+    for recipient in protected_headers["recipients"]:
+        await queue.add_message(
+            recipient_key=recipient["header"]["kid"], msg=outbound.enc_payload
+        )

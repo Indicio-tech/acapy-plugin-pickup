@@ -34,13 +34,17 @@ services:
         --wallet-name test
         --wallet-key test
         --auto-provision
+<<<<<<< HEAD
     depends_on:
       redis:
         condition: service_healthy
+=======
+        --open-mediation
+>>>>>>> 6afc96d... feat(WIP): extract recipient key from encoded payload
 
   echo:
     # Image with session support, replace with latest after merged
-    image: dbluhm/echo-agent:a82900c
+    image: ghcr.io/indicio-tech/echo-agent:0.2.0
     ports:
       - "3002:3002"
     command: --host 0.0.0.0 --port 3002 --log-level debug

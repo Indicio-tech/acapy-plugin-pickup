@@ -97,7 +97,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
 name = "echo-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "A \"hollow\" agent for use in testing"
 category = "main"
 optional = false
@@ -109,13 +109,13 @@ httpx = {version = "^0.15.4", optional = true}
 
 [package.extras]
 client = ["httpx (>=0.15.4,<0.16.0)"]
-server = ["fastapi (>=0.67.0,<0.68.0)", "aries-staticagent @ git+https://github.com/hyperledger/aries-staticagent-python@b69f667448327febe5d2d8370599d7ffae81ceb2", "aiohttp (>=3.8.0,<4.0.0)"]
+server = ["fastapi (>=0.79.0,<0.80.0)", "aries-staticagent @ git+https://github.com/hyperledger/aries-staticagent-python@1f27f85cf72cc6a2e10a6495c85f2b21462362cd", "aiohttp (>=3.8.0,<4.0.0)", "pydantic (>=1.9.1,<2.0.0)"]
 
 [package.source]
 type = "git"
 url = "https://github.com/Indicio-tech/echo-agent.git"
-reference = "a82900c9e9d13c9285344c849000fe4850ff4fda"
-resolved_reference = "a82900c9e9d13c9285344c849000fe4850ff4fda"
+reference = "v0.2.0"
+resolved_reference = "c305746b2e263f1d5d4aa3e6a8cc0e98f4b75417"
 
 [[package]]
 name = "flake8"
@@ -425,7 +425,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "f77a492838d42c21b9201d5c70c8b7759c9d10b2482e9bc99321689cebe50cbc"
+content-hash = "90a133477f9008ab592bae724dc5ca93bf7ea4366292c3281279da4de3fe2f78"
 
 [metadata.files]
 acapy-client = []
