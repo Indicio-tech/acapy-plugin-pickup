@@ -34,9 +34,6 @@ services:
         --wallet-name test
         --wallet-key test
         --auto-provision
-    depends_on:
-      redis:
-        condition: service_healthy
 
   echo:
     # Image with session support, replace with latest after merged
@@ -63,7 +60,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
 
   #*******************************************************************
   # tester: drives tests for acapy_plugin_pickup in a                *
