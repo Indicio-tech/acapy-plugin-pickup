@@ -34,10 +34,11 @@ services:
         --wallet-name test
         --wallet-key test
         --auto-provision
+        --open-mediation
 
   echo:
     # Image with session support, replace with latest after merged
-    image: dbluhm/echo-agent:a82900c
+    image: ghcr.io/indicio-tech/echo-agent:0.2.0
     ports:
       - "3002:3002"
     command: --host 0.0.0.0 --port 3002 --log-level debug

@@ -99,7 +99,7 @@ def echo_agent(echo_endpoint: str):
     yield EchoClient(base_url=echo_endpoint)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 async def echo(echo_agent: EchoClient):
     async with echo_agent as client:
         yield client
@@ -125,6 +125,6 @@ async def connection(
         conn = await echo.new_connection(
             seed=echo_seed,
             endpoint=agent_connection.my_endpoint,
-            their_vk=agent_connection.my_verkey,
+            recipient_keys=[agent_connection.my_verkey],
         )
     yield conn

@@ -1,65 +1,122 @@
+from datetime import datetime
+
 import pytest
 from echo_agent.client import EchoClient
 from echo_agent.models import ConnectionInfo
 
 
+DIDCOMM_URI = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
+
+
+def msg_type(protocol_version_msg: str):
+    return f"{DIDCOMM_URI}{protocol_version_msg}"
+
+
 @pytest.fixture
 def message():
     yield {
-        "connection_id": "conn_id",
-        "status": "some_status",
-        "recipient_key": "test_key",
-        "message": "message_payload",
+        "@type": msg_type("basicmessage/1.0/message"),
+        "content": "test",
+        "~l10n": {"locale": "en"},
+        "sent_time": datetime.now().isoformat(),
     }
 
 
-@pytest.fixture()
-async def mediation_request(echo: EchoClient, connection: ConnectionInfo, ws_endpoint):
+@pytest.fixture(scope="session")
+async def mediation(echo: EchoClient, connection: ConnectionInfo, ws_endpoint):
     async with echo.session(connection, ws_endpoint) as session:
-        request = await echo.send_message_to_session(
+        await echo.send_message_to_session(
             session,
             {
                 "@id": "123456781",
-                "@type": "https://didcomm.org/coordinate-mediation/1.0/mediate-request",
+                "@type": msg_type("coordinate-mediation/1.0/mediate-request"),
+                "~transport": {"return_route": "all"},
             },
         )
-    return request
+        granted = await echo.get_message(
+            connection,
+            msg_type=msg_type("coordinate-mediation/1.0/mediate-grant"),
+            session=session,
+        )
+        assert granted
+    yield granted
+
+
+@pytest.fixture()
+async def mediated_connection(
+    echo: EchoClient,
+    connection: ConnectionInfo,
+    ws_endpoint: str,
+    mediation: dict,
+    echo_seed: str,
+):
+    async with echo.session(connection, ws_endpoint) as session:
+        await echo.send_message_to_session(
+            session,
+            {
+                "@type": msg_type("coordinate-mediation/1.0/keylist-update"),
+                "updates": [{"recipient_key": connection.verkey, "action": "add"}],
+                "~transport": {"return_route": "all"},
+            },
+        )
+        response = await echo.get_message(
+            connection=connection,
+            session=session,
+            msg_type=msg_type("coordinate-mediation/1.0/keylist-update-response"),
+        )
+        assert response["updated"]
+        assert response["updated"][0]["result"] == "success"
+
+    mediated_conn = await echo.new_connection(
+        seed=echo_seed,
+        endpoint=mediation["endpoint"],
+        recipient_keys=[connection.verkey],
+        routing_keys=mediation["routing_keys"],
+    )
+
+    yield mediated_conn
+
+    async with echo.session(connection, ws_endpoint) as session:
+        await echo.send_message_to_session(
+            session,
+            {
+                "@type": msg_type("coordinate-mediation/1.0/keylist-update"),
+                "updates": [{"recipient_key": connection.verkey, "action": "remove"}],
+                "~transport": {"return_route": "all"},
+            },
+        )
+        response = await echo.get_message(
+            connection=connection,
+            session=session,
+            msg_type=msg_type("coordinate-mediation/1.0/keylist-update-response"),
+        )
+        assert response["updated"]
+        assert response["updated"][0]["result"] == "success"
 
 
 @pytest.mark.asyncio
 async def test_forward_event_received(
     echo: EchoClient,
     connection: ConnectionInfo,
-    message,
+    mediated_connection: ConnectionInfo,
+    message: dict,
     ws_endpoint,
-    mediation_request,
 ):
 
     """Testing forward messages/events are received by the pickup plugin."""
-    async with echo.session(connection, ws_endpoint) as session:
+    async with echo.session(
+        mediated_connection, ws_endpoint
+    ) as mediated_session, echo.session(connection, ws_endpoint) as session:
         await echo.send_message_to_session(
-            session,
-            {
-                "@id": "123456781",
-                "@type": "https://didcomm.org/coordinate-mediation/1.0/mediate-request",
-            },
+            mediated_session,
+            message,
         )
-        granted = await echo.get_message(connection, session=session)
-        assert (
-            granted["@type"]
-            == "https://didcomm.org/coordinate-mediation/1.0/mediate-grant"
+        forwarded = await echo.get_message(
+            connection=connection,
+            session=session,
+            msg_type=msg_type("basicmessage/1.0/message"),
         )
-
-        await echo.send_message_to_session(
-            session,
-            {
-                "@id": connection.connection_id,
-                "@type": "https://didcomm.org/coordinate-mediation/1.0/keylist-query",
-                "paginate": {"limit": 30, "offset": 0},
-            },
-        )
-        key_list = await echo.get_message(connection, session=session)
-        print(key_list)
+        print(forwarded)
         assert False
 
     await echo.send_message(

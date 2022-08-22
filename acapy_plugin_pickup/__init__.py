@@ -3,6 +3,8 @@
 
 import logging
 import re
+import json
+from base64 import urlsafe_b64decode
 from os import getenv
 from typing import cast
 
@@ -23,7 +25,9 @@ from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
 FORWARD_EVENT_TOPIC = re.compile("acapy::forward::received")
-RECEIVED_EVENT_TOPIC = re.compile("acapy::inbound-message::received") #TODO: Find out the proper domain name 
+RECEIVED_EVENT_TOPIC = re.compile(
+    "acapy::inbound-message::received"
+)  # TODO: Find out the proper domain name
 LOGGER = logging.getLogger(__name__)
 REDIS_ENDPOINT = getenv("REDIS_ENDPOINT", "redis://redis:6379")
 
@@ -122,5 +126,12 @@ async def undeliverable(profile: Profile, event: Event):
                 sender_key,
             )
 
+    protected_headers = json.loads(
+        urlsafe_b64decode(json.loads(outbound.enc_payload)["protected"])
+    )
+
     queue = profile.inject(UndeliveredInterface)
-    await queue.add_message(msg=outbound)
+    for recipient in protected_headers["recipients"]:
+        await queue.add_message(
+            recipient_key=recipient["header"]["kid"], msg=outbound.enc_payload
+        )
