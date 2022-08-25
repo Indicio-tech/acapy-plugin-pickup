@@ -9,9 +9,8 @@ WORKDIR /usr/src/app
 ENV POETRY_VERSION=1.1.11
 ENV POETRY_HOME=/opt/poetry
 
-RUN apt update && apt install --yes curl && apt clean \
-        && curl -sSL https://install.python-poetry.org | python - \
-        && apt remove --yes curl
+RUN apt-get update && apt-get install --yes curl && apt-get clean \
+        && curl -sSL https://install.python-poetry.org | python -
 
 ENV PATH="/opt/poetry/bin:$PATH"
 RUN ls /opt/poetry/bin
@@ -24,6 +23,6 @@ COPY acapy_plugin_pickup/ acapy_plugin_pickup/
 RUN poetry build
 
 FROM bcgovimages/aries-cloudagent:${ACAPY_TAG}
-COPY --from=base /usr/src/app/dist/acapy_plugin_pickup-*-py3-none-any.whl /tmp/acapy_plugin_pickup-*-py3-none-any.whl
+COPY --from=base --chown=indy:indy /usr/src/app/dist/acapy_plugin_pickup-*-py3-none-any.whl /tmp/acapy_plugin_pickup-*-py3-none-any.whl
 RUN pip install /tmp/acapy_plugin_pickup-*-py3-none-any.whl && \
         rm /tmp/acapy_plugin_pickup-*
