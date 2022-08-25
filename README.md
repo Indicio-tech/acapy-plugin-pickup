@@ -1,5 +1,10 @@
 # Pickup Protocol for ACA-Py
 
+[![PyPI](https://img.shields.io/pypi/v/acapy-plugin-pickup)](https://pypi.org/project/acapy-plugin-pickup/)
+[![Container Image](https://img.shields.io/badge/image-0.1.0-blue)](https://github.com/Indicio-tech/acapy-plugin-pickup/pkgs/container/acapy-plugin-pickup/39152013?tag=0.1.0)
+
+
+
 ## Protocol Defintion
 
 This protocol is an implementation of [RFC 0685](https://github.com/hyperledger/aries-rfcs/tree/main/features/0685-pickup-v2).
