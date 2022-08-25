@@ -24,7 +24,7 @@ jobs:
         if: steps.setup.outputs.cache-hit != 'true'
         run: poetry install
       - name: Confidence check (run tests)
-        run: poetry run pytest
+        run: poetry run pytest tests
       - name: Build package
         run: poetry build
       - name: Publish package

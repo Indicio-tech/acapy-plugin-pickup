@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "acapy-plugin-pickup"
-version = "0.1.0"
+version = "0.1.0-post0"
 description = "Pickup Protocol for ACA-Py"
 authors = ["Daniel Bluhm <dbluhm@pm.me>", "Micah Peltier <micah6_8@yahoo.com>", "Peter Strobel <peter@indicio.tech>"]
 license = "Apache-2.0"

@@ -40,7 +40,7 @@ jobs:
           images: |
             ghcr.io/${{ steps.info.outputs.repo-owner }}/acapy-plugin-pickup
           tags: |
-            type=semver
+            type=semver,pattern={{version}}
             type=sha
 
       - name: Build and Push Image to ghcr.io
