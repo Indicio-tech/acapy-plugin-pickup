@@ -50,15 +50,13 @@ async def setup(context: InjectionContext):
 
     settings = context.settings.for_plugin("pickup")
     persistence = settings.get("persistence")
-    redis_uri = settings.get("redis.server")
-    ttl = settings.get("ttl")
 
     if persistence == "mem":
         queue = InMemoryQueue()
     elif persistence == "redis":
-        queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl=ttl)
+        queue = await setup_redis(settings=settings)
     else:
-        raise ValueError()
+        raise ValueError("Either mem or redis must be set.")
 
     context.injector.bind_instance(UndeliveredInterface, queue)
 
