@@ -61,6 +61,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
   #*******************************************************************
   # tester: drives tests for acapy_plugin_pickup in a                *

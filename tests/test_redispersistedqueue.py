@@ -1,11 +1,9 @@
-import json
 from typing import Any, Dict, List, Optional
 from unittest import mock
 
 import pytest
 from acapy_plugin_pickup.undelivered_queue.redis_persisted_queue import (
     RedisPersistedQueue,
-    msg_serialize,
 )
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.transport.outbound.message import OutboundMessage
@@ -60,6 +58,7 @@ class CoroutineMock(mock.MagicMock):
 @pytest.mark.asyncio
 async def test_add_message(
     queue: RedisPersistedQueue,
+    key: str,
     msg: OutboundMessage,
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -67,7 +66,7 @@ async def test_add_message(
     monkeypatch.setattr(mock_redis, "zadd", CoroutineMock())
     monkeypatch.setattr(mock_redis, "expire", CoroutineMock())
     monkeypatch.setattr(mock_redis, "setex", CoroutineMock())
-    await queue.add_message(msg)
+    await queue.add_message(key, msg.enc_payload)
     mock_redis.zadd.assert_called_once()
     mock_redis.expire.assert_called_once()
     mock_redis.setex.assert_called_once()
@@ -95,25 +94,41 @@ async def test_has_message_for_key(
         ([], {}, None),
         (
             ["asdf"],
-            {"asdf": OutboundMessage(payload="asdf", connection_id="conn_id")},
-            OutboundMessage(payload="asdf", connection_id="conn_id"),
+            {
+                "asdf": OutboundMessage(
+                    payload="asdf", connection_id="conn_id", enc_payload="qwerty"
+                ).enc_payload
+            },
+            OutboundMessage(
+                payload="asdf", connection_id="conn_id", enc_payload="qwerty"
+            ).enc_payload,
         ),
         (
             ["1", "2"],
             {
-                "1": OutboundMessage(payload="1", connection_id="conn_id1"),
-                "2": OutboundMessage(payload="2", connection_id="conn_id2"),
+                "1": OutboundMessage(
+                    payload="1", connection_id="conn_id1", enc_payload="enc_1"
+                ).enc_payload,
+                "2": OutboundMessage(
+                    payload="2", connection_id="conn_id2", enc_payload="enc_2"
+                ).enc_payload,
             },
-            OutboundMessage(payload="1", connection_id="conn_id1"),
+            OutboundMessage(
+                payload="1", connection_id="conn_id1", enc_payload="enc_1"
+            ).enc_payload,
         ),
         (
             ["1", "2", "3"],
             {
                 "1": None,
                 "2": None,
-                "3": OutboundMessage(payload="3", connection_id="conn_id3"),
+                "3": OutboundMessage(
+                    payload="3", connection_id="conn_id3", enc_payload="enc_3"
+                ).enc_payload,
             },
-            OutboundMessage(payload="3", connection_id="conn_id3"),
+            OutboundMessage(
+                payload="3", connection_id="conn_id3", enc_payload="enc_3"
+            ).enc_payload,
         ),
     ],
 )
@@ -122,9 +137,9 @@ async def test_get_messages_for_key(
     key: str,
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
-    msg_queue: List[OutboundMessage],
-    messages: Dict[str, OutboundMessage],
-    expected: Optional[OutboundMessage],
+    msg_queue: List[bytes],
+    messages: Dict[str, bytes],
+    expected: Optional[bytes],
 ):
     async def _zrem(key: str, *msg_idents):
         if key not in messages or messages[key] is None:
@@ -135,11 +150,7 @@ async def test_get_messages_for_key(
 
     async def _mget(key: str):
 
-        return [
-            json.dumps(msg_serialize(message))
-            for message in messages.values()
-            if message is not None
-        ]
+        return [message for message in messages.values() if message is not None]
 
     monkeypatch.setattr(mock_redis, "zrange", CoroutineMock(return_value=msg_queue))
     monkeypatch.setattr(mock_redis, "mget", _mget)
@@ -150,7 +161,7 @@ async def test_get_messages_for_key(
         assert msg == []
     else:
         assert msg
-        assert msg_serialize(expected) == msg_serialize(msg[0])
+        assert expected == msg[0]
 
 
 @pytest.mark.asyncio
@@ -161,14 +172,14 @@ async def test_get_messages_for_key(
         (
             ["1", "2", "3"],
             {
-                "1": OutboundMessage(payload="1"),
-                "2": OutboundMessage(payload="2"),
-                "3": OutboundMessage(payload="3"),
+                "1": OutboundMessage(payload="1", enc_payload="enc_1").enc_payload,
+                "2": OutboundMessage(payload="2", enc_payload="enc_2").enc_payload,
+                "3": OutboundMessage(payload="3", enc_payload="enc_3").enc_payload,
             },
             [
-                OutboundMessage(payload="1"),
-                OutboundMessage(payload="2"),
-                OutboundMessage(payload="3"),
+                OutboundMessage(payload="1", enc_payload="enc_1").enc_payload,
+                OutboundMessage(payload="2", enc_payload="enc_2").enc_payload,
+                OutboundMessage(payload="3", enc_payload="enc_3").enc_payload,
             ],
         ),
     ],
@@ -183,7 +194,7 @@ async def test_inspect_all_messages_for_key(
     expected: List[OutboundMessage],
 ):
     async def _mget(key: str):
-        return [json.dumps(msg_serialize(message)) for message in messages.values()]
+        return [message for message in messages.values()]
 
     monkeypatch.setattr(mock_redis, "zrange", CoroutineMock(return_value=msg_queue))
     monkeypatch.setattr(mock_redis, "mget", _mget)
@@ -191,27 +202,53 @@ async def test_inspect_all_messages_for_key(
     msgs = await queue.inspect_all_messages_for_key(key)
     assert len(msgs) == len(expected)
     for i in range(len(expected)):
-        assert msg_serialize(msgs[i]) == msg_serialize(expected[i])
+        assert msgs[i] == expected[i]
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("msg_queue", "messages"),
+    [
+        ([], {}),
+        (
+            ["1", "2", "3"],
+            {
+                "1": OutboundMessage(payload="1", enc_payload=b"enc_1").enc_payload,
+                "2": OutboundMessage(payload="2", enc_payload=b"enc_2").enc_payload,
+                "3": OutboundMessage(payload="3", enc_payload=b"enc_3").enc_payload,
+            },
+        ),
+    ],
+)
 async def test_remove_messages_for_key(
     queue: RedisPersistedQueue,
     key: str,
+    msg_queue: list,
+    messages: Dict[str, bytes],
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
-    msg: OutboundMessage,
+    msg: bytes,
 ):
-    async def _zrem(key: str, msg_idents):
+    async def _zrem(key: str, *msg_idents):
         if key not in messages or messages[key] is None:
             return None
         for member in msg_idents:
             if member in messages[key]:
                 del member
 
+    async def _mget(key: str):
+
+        return [message for message in messages.values() if message is not None]
+
+    monkeypatch.setattr(mock_redis, "mget", _mget)
     monkeypatch.setattr(mock_redis, "zrem", _zrem)
     del_mock = CoroutineMock()
+    monkeypatch.setattr(mock_redis, "zrange", CoroutineMock(return_value=msg_queue))
     monkeypatch.setattr(mock_redis, "delete", del_mock)
 
-    await queue.remove_messages_for_key(key, [msg])
-    del_mock.assert_called_once()
+    for msg in list(messages.values()):
+        await queue.remove_messages_for_key(key, msg)
+        if msg_queue == []:
+            del_mock.assert_not_called()
+        else:
+            del_mock.assert_called()

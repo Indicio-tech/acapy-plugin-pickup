@@ -96,7 +96,7 @@ async def forward(profile: Profile, event: Event):
     # an enc_payload.
 
     queue = profile.inject(UndeliveredInterface)
-    await queue.add_message(msg=outbound)
+    await queue.add_message(msg=outbound.enc_payload)
 
 
 async def undeliverable(profile: Profile, event: Event):

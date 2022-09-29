@@ -9,7 +9,6 @@ import time
 
 from acapy_plugin_pickup.undelivered_queue.redis_persisted_queue import (
     RedisPersistedQueue,
-    msg_serialize,
 )
 from acapy_plugin_pickup.undelivered_queue.base import message_id_for_outbound
 
@@ -34,7 +33,12 @@ def msg(target: ConnectionTarget):
         target_list=[],
         reply_from_verkey="reply_from_verkey",
         payload="payload",
-        enc_payload="enc_payload",
+        enc_payload={
+            "protected": "protected_key",
+            "iv": "test_iv",
+            "ciphertext": "test_ciphertext",
+            "tag": "test_tag",
+        },
     )
 
 
@@ -46,7 +50,12 @@ def msg2(target: ConnectionTarget):
         target_list=[],
         reply_from_verkey="reply_from_verkey",
         payload="payload2",
-        enc_payload="enc_payload2",
+        enc_payload={
+            "protected": "protected_key2",
+            "iv": "test_iv2",
+            "ciphertext": "test_ciphertext2",
+            "tag": "test_tag2",
+        },
     )
 
 
@@ -58,7 +67,12 @@ def msg3(target: ConnectionTarget):
         target_list=[],
         reply_from_verkey="reply_from_verkey",
         payload="payload3",
-        enc_payload="enc_payload3",
+        enc_payload={
+            "protected": "protected_key3",
+            "iv": "test_iv3",
+            "ciphertext": "test_ciphertext3",
+            "tag": "test_tag3",
+        },
     )
 
 
@@ -70,7 +84,12 @@ def msg4(target: ConnectionTarget):
         target_list=[],
         reply_from_verkey="reply_from_verkey",
         payload="payload4",
-        enc_payload="enc_payload4",
+        enc_payload={
+            "protected": "protected_key4",
+            "iv": "test_iv4",
+            "ciphertext": "test_ciphertext4",
+            "tag": "test_tag4",
+        },
     )
 
 
@@ -82,7 +101,12 @@ def another_msg(target: ConnectionTarget):
         target_list=[],
         reply_from_verkey="reply_from_verkey",
         payload="another",
-        enc_payload="enc_another",
+        enc_payload={
+            "protected": "other_protected_key",
+            "iv": "other_test_iv",
+            "ciphertext": "other_test_ciphertext",
+            "tag": "other_test_tag",
+        },
     )
 
 
@@ -97,11 +121,11 @@ async def redis():
 @pytest.mark.asyncio
 async def test_persistedqueue(
     redis: Redis,
-    msg: OutboundMessage,
-    another_msg: OutboundMessage,
-    msg2: OutboundMessage,
-    msg3: OutboundMessage,
-    msg4: OutboundMessage,
+    msg: str or bytes,
+    another_msg: str or bytes,
+    msg2: str or bytes,
+    msg3: str or bytes,
+    msg4: str or bytes,
 ):
     """
     PersistedQueue Test.
@@ -113,7 +137,7 @@ async def test_persistedqueue(
     # Testing adding a message to the queue.
     assert await queue.message_count_for_key(key) == 0
 
-    await queue.add_message(msg)
+    await queue.add_message(key, msg.enc_payload)
     assert await queue.message_count_for_key(key) == 1
 
     # Testing checking for queued messages.
@@ -121,16 +145,18 @@ async def test_persistedqueue(
 
     # Testing returning and removing a specific message by key.
     msg_from_queue = await queue.get_messages_for_key(key, 1)
-    assert isinstance(msg_from_queue[0], OutboundMessage)
-    assert msg_serialize(msg_from_queue[0]) == msg_serialize(msg)
+    assert isinstance(msg_from_queue[0], bytes)
+    assert json.loads(msg_from_queue[0]) == msg.enc_payload
 
     # Check that message removal works, clear the queue
-    await queue.remove_messages_for_key(key, [msg])
+    await queue.remove_messages_for_key(
+        key, bytes(json.dumps(msg.enc_payload), "utf-8")
+    )
     assert await queue.message_count_for_key(key) == 0
 
     # Testing expiration of messages, along with the above message removal
     # method in the case that no messages are present.
-    await queue.add_message(msg=msg)
+    await queue.add_message(key, msg.enc_payload)
 
     assert await queue.message_count_for_key(key) == 1
 
@@ -140,19 +166,19 @@ async def test_persistedqueue(
 
     # Now we do it again, with multiple messages of different
     # expiration times.
-    await queue.add_message(msg=msg)
+    await queue.add_message(key, msg.enc_payload)
     assert await queue.message_count_for_key(key) == 1
 
     time.sleep(1)
-    await queue.add_message(msg=msg2)
+    await queue.add_message(key, msg2.enc_payload)
     assert await queue.message_count_for_key(key) == 2
 
     time.sleep(1)
-    await queue.add_message(msg=msg3)
+    await queue.add_message(key, msg3.enc_payload)
     assert await queue.message_count_for_key(key) == 3
 
     time.sleep(1)
-    await queue.add_message(msg=msg4)
+    await queue.add_message(key, msg4.enc_payload)
     assert await queue.message_count_for_key(key) == 4
 
     time.sleep(2)
@@ -166,25 +192,22 @@ async def test_persistedqueue(
     assert await queue.get_messages_for_key(key, 1) == []
 
     # Testing returning all messages for a key.
-    await queue.add_message(msg)
-    await queue.add_message(another_msg)
+    await queue.add_message(key, msg.enc_payload)
+    await queue.add_message(key, another_msg.enc_payload)
     assert await queue.message_count_for_key(key) == 2
     inspect_messages = await queue.inspect_all_messages_for_key(key)
     assert inspect_messages
     assert len(inspect_messages) == 2
-    assert [msg_serialize(msg), msg_serialize(another_msg)] == [
-        msg_serialize(msg) for msg in inspect_messages
-    ]
+    assert [
+        bytes(json.dumps(msg.enc_payload), "utf-8"),
+        bytes(json.dumps(another_msg.enc_payload), "utf-8"),
+    ] == [msg for msg in inspect_messages]
 
     # Testing removing a specific message foe key
-    await queue.remove_messages_for_key(key, [msg])
+    await queue.remove_messages_for_key(
+        key, bytes(json.dumps(msg.enc_payload), "utf-8")
+    )
     assert await queue.message_count_for_key(key) == 1
-    assert [msg_serialize(another_msg)] == [
-        msg_serialize(msg) for msg in await queue.inspect_all_messages_for_key(key)
+    assert [bytes(json.dumps(another_msg.enc_payload), "utf-8")] == [
+        msg for msg in await queue.inspect_all_messages_for_key(key)
     ]
-
-    # We've removed this capability, so I don't think we need this test anymore
-
-    # Testing flushing all messages from the queue.
-    # assert await queue.flush_messages(key)
-    # assert not await queue.inspect_all_messages_for_key(key)
