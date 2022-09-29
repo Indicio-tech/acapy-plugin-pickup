@@ -141,7 +141,7 @@ async def test_get_messages_for_key(
     messages: Dict[str, bytes],
     expected: Optional[bytes],
 ):
-    async def _zrem(key: str, msg_idents):
+    async def _zrem(key: str, *msg_idents):
         if key not in messages or messages[key] is None:
             return None
         for member in msg_idents:

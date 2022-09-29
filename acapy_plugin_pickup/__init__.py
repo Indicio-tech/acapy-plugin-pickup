@@ -60,9 +60,6 @@ async def setup(context: InjectionContext):
     else:
         raise ValueError()
 
-<<<<<<< HEAD
-    context.injector.bind_instance(RedisPersistedQueue, queue)
-=======
     context.injector.bind_instance(UndeliveredInterface, queue)
 
 
@@ -97,7 +94,6 @@ async def forward(profile: Profile, event: Event):
 
     queue = profile.inject(UndeliveredInterface)
     await queue.add_message(msg=outbound.enc_payload)
->>>>>>> 7dcbce6... feat: messages stored as bytes in queue
 
 
 async def undeliverable(profile: Profile, event: Event):
