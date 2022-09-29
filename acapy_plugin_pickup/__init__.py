@@ -60,7 +60,44 @@ async def setup(context: InjectionContext):
     else:
         raise ValueError()
 
+<<<<<<< HEAD
     context.injector.bind_instance(RedisPersistedQueue, queue)
+=======
+    context.injector.bind_instance(UndeliveredInterface, queue)
+
+
+async def setup_redis(settings):
+    redis = settings.get("redis")
+
+    if not redis:
+        raise ValueError(
+            "If redis persistence is chosen, redis data must be specified."
+        )
+
+    ttl = redis.get("ttl_hours")
+    redis_uri = redis.get("server")
+
+    if not redis_uri:
+        raise ValueError("redis_uri must be specified.")
+
+    return RedisPersistedQueue(
+        redis=await aioredis.from_url(redis_uri), ttl_seconds=60 * 60 * ttl
+    )
+
+
+async def forward(profile: Profile, event: Event):
+    LOGGER.debug(
+        "Forward Event Captured in Pickup Protocol: %s, %s", event.topic, event.payload
+    )
+    outbound = cast(OutboundMessage, event.payload)
+    LOGGER.debug("Plugin settings", event.payload, outbound)
+    # In this scenario we are explicitly listening for messages
+    # forwarded from another agent, so we will always have
+    # an enc_payload.
+
+    queue = profile.inject(UndeliveredInterface)
+    await queue.add_message(msg=outbound.enc_payload)
+>>>>>>> 7dcbce6... feat: messages stored as bytes in queue
 
 
 async def undeliverable(profile: Profile, event: Event):

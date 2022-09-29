@@ -1,61 +1,16 @@
 """Persisted Queue using Redis for undelivered messages."""
 
-import copy
 import json
 import logging
 import time
 from datetime import timedelta
-from typing import Any, Dict, List, Union, Optional
+from typing import List, Optional
 
-from aries_cloudagent.connections.models.connection_target import ConnectionTarget
-from aries_cloudagent.transport.outbound.message import OutboundMessage
 from redis import asyncio as aioredis
 
 from .base import UndeliveredInterface, message_id_for_outbound
 
 LOGGER = logging.getLogger(__name__)
-
-
-def msg_serialize(msg: OutboundMessage) -> Dict[str, Any]:
-    """Serialize outbound message object."""
-    outbound_dict = {
-        prop: getattr(msg, prop)
-        for prop in (
-            "connection_id",
-            "reply_session_id",
-            "reply_thread_id",
-            "reply_to_verkey",
-            "reply_from_verkey",
-            "to_session_only",
-        )
-    }
-    outbound_dict["payload"] = (
-        msg.payload.decode("utf-8") if isinstance(msg.payload, bytes) else msg.payload
-    )
-    outbound_dict["enc_payload"] = (
-        msg.enc_payload.decode("utf-8")
-        if isinstance(msg.enc_payload, bytes)
-        else msg.enc_payload
-    )
-    outbound_dict["target"] = msg.target.serialize() if msg.target else None
-    outbound_dict["target_list"] = [
-        target.serialize() for target in msg.target_list if target
-    ] or None
-    return outbound_dict
-
-
-def msg_deserialize(value: Dict[str, Any]) -> OutboundMessage:
-    """Deserialize outbound message object."""
-    value = copy.deepcopy(value)
-    if "target" in value and value["target"]:
-        value["target"] = ConnectionTarget.deserialize(value["target"])
-
-    if "target_list" in value and value["target_list"]:
-        value["target_list"] = [
-            ConnectionTarget.deserialize(target) for target in value["target_list"]
-        ]
-
-    return OutboundMessage(**value)
 
 
 class RedisPersistedQueue(UndeliveredInterface):
@@ -102,43 +57,37 @@ class RedisPersistedQueue(UndeliveredInterface):
         self.queue_by_key = redis  # Queue of messages and corresponding keys
         self.ttl_seconds = ttl_seconds or 60 * 60 * 24 * 3  # three days
 
-    async def add_message(self, msg: OutboundMessage):
+    async def add_message(self, recipient_key: str, msg: bytes):
         """
-        Add an OutboundMessage to delivery queue.
-        The message is added once per recipient key
+        Add an OutboundMessage encrypted payload to 
+        delivery queue. The message is added once 
+        per recipient key
         Args:
             key: The recipient key of the connected
             agent
-            msg: The OutboundMessage to add
+            msg: The enc_payload to add
         """
 
-        keys: List[str] = []
-        if msg.target:
-            keys.extend(msg.target.recipient_keys)
-        if msg.reply_to_verkey:
-            keys.append(msg.reply_to_verkey)
+        msg_loaded = json.dumps(msg)
 
-        msg_ident = message_id_for_outbound(msg=msg)
+        msg_ident = message_id_for_outbound(msg=msg_loaded)
         msg_score = time.time()
-        serialized_msg = json.dumps(msg_serialize(msg))
 
-        key = keys[0]
+        key = recipient_key
 
         await self.queue_by_key.zadd(key, {msg_ident: msg_score}, nx=True)
         await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
         await self.queue_by_key.setex(
-            msg_ident,
-            timedelta(seconds=self.ttl_seconds),
-            serialized_msg,
+            msg_ident, timedelta(seconds=self.ttl_seconds), msg_loaded
         )
 
-    async def has_message_for_key(self, key: str):
+    async def has_message_for_key(self, recipient_key: str):
         """
         Check for queued messages by key.
         Args:
             key: The key to use for lookup
         """
-        msg_ident: str = await self.queue_by_key.zrange(key, 0, 0)
+        msg_ident: str = await self.queue_by_key.zrange(recipient_key, 0, 0)
         return bool(msg_ident)
 
     async def message_count_for_key(self, key: str):
@@ -153,7 +102,7 @@ class RedisPersistedQueue(UndeliveredInterface):
         count: int = await self.queue_by_key.zcard(key)
         return count
 
-    async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
+    async def get_messages_for_key(self, recipient_key: str, count: int) -> List[bytes]:
         """
         Return a number of messages for a key.
         Args:
@@ -161,29 +110,27 @@ class RedisPersistedQueue(UndeliveredInterface):
             count: the number of messages to return
         """
 
-        await self.expire_helper(key)
+        await self.expire_helper(recipient_key)
 
-        msg_idents: str = await self.queue_by_key.zrange(key, 0, count - 1)
+        msg_idents: str = await self.queue_by_key.zrange(recipient_key, 0, count - 1)
         msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
 
-        return [msg_deserialize(json.loads(msg)) for msg in msgs]
+        return msgs
 
-    async def inspect_all_messages_for_key(self, key: str):
+    async def inspect_all_messages_for_key(self, recipient_key: str):
         """
         Return all messages for key.
         Args:
             key: The key to use for lookup
         """
-        msg_idents = await self.queue_by_key.zrange(key, 0, -1)
+        msg_idents = await self.queue_by_key.zrange(recipient_key, 0, -1)
         if msg_idents:
             msgs = await self.queue_by_key.mget([msg_ident for msg_ident in msg_idents])
-            msgs = [msg_deserialize(json.loads(msg)) for msg in msgs if msg]
+            msgs = [msg for msg in msgs if msg]
             return msgs
         return []
 
-    async def remove_messages_for_key(
-        self, key: str, msgs: List[Union[OutboundMessage, str]]
-    ):
+    async def remove_messages_for_key(self, recipient_key: str, msg_payload: dict):
         """
         Remove specified message from queue for key.
         Args:
@@ -192,12 +139,16 @@ class RedisPersistedQueue(UndeliveredInterface):
                   or (2) the hash (as described in the above function)
                   of the message payload, which serves as the identifier
         """
+        msgs = await self.get_messages_for_key(recipient_key, 0)
         homogenized_msg_idents = [
-            message_id_for_outbound(msg) if isinstance(msg, OutboundMessage) else msg
+            message_id_for_outbound(msg)
             for msg in msgs
+            if msg == msg_payload
+            if isinstance(msg, bytes)
         ]
+
         if homogenized_msg_idents:
-            await self.queue_by_key.zrem(key, *homogenized_msg_idents)
+            await self.queue_by_key.zrem(recipient_key, *homogenized_msg_idents)
             await self.queue_by_key.delete(*homogenized_msg_idents)
 
     async def expire_helper(self, key):

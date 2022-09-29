@@ -67,7 +67,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+<<<<<<< HEAD
       start_period: 10s
+=======
+      start_period: 5s
+>>>>>>> 7dcbce6... feat: messages stored as bytes in queue
 
   #*******************************************************************
   # tester: drives tests for acapy_plugin_pickup in a                *
