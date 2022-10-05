@@ -67,8 +67,8 @@ async def test_messages_received_with_id(echo: EchoClient, connection: Connectio
     assert wrapped_msgs["@type"] == "https://didcomm.org/messagepickup/2.0/delivery"
     msg_ids = []
 
-    for _ in wrapped_msgs["~attach"]:
-        msg_ids.append(_["@id"])
+    for msg in wrapped_msgs["~attach"]:
+        msg_ids.append(msg["@id"])
 
     await echo.send_message(
         connection,

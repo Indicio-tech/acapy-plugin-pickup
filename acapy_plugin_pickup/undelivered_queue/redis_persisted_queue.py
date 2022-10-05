@@ -68,7 +68,7 @@ class RedisPersistedQueue(UndeliveredInterface):
             msg: The enc_payload to add
         """
 
-        msg_loaded = json.dumps(msg)
+        msg_loaded = msg
 
         msg_ident = message_id_for_outbound(msg=msg_loaded)
         msg_score = time.time()

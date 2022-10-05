@@ -50,13 +50,13 @@ async def setup(context: InjectionContext):
 
     settings = context.settings.for_plugin("pickup")
     persistence = settings.get("persistence")
-    redis_uri = settings.get("redis.server")
-    ttl = settings.get("ttl")
+    redis_uri = settings.get("redis", {}).get("server")
+    ttl = settings.get("redis", {}).get("ttl_hours")
 
     if persistence == "mem":
         queue = InMemoryQueue()
     elif persistence == "redis":
-        queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl=ttl)
+        queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl_seconds=ttl)
     else:
         raise ValueError()
 
@@ -80,20 +80,6 @@ async def setup_redis(settings):
     return RedisPersistedQueue(
         redis=await aioredis.from_url(redis_uri), ttl_seconds=60 * 60 * ttl
     )
-
-
-async def forward(profile: Profile, event: Event):
-    LOGGER.debug(
-        "Forward Event Captured in Pickup Protocol: %s, %s", event.topic, event.payload
-    )
-    outbound = cast(OutboundMessage, event.payload)
-    LOGGER.debug("Plugin settings", event.payload, outbound)
-    # In this scenario we are explicitly listening for messages
-    # forwarded from another agent, so we will always have
-    # an enc_payload.
-
-    queue = profile.inject(UndeliveredInterface)
-    await queue.add_message(msg=outbound.enc_payload)
 
 
 async def undeliverable(profile: Profile, event: Event):
