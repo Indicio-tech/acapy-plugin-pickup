@@ -58,7 +58,7 @@ async def setup(context: InjectionContext):
     elif persistence == "redis":
         queue = RedisPersistedQueue(redis=await aioredis.from_url(redis_uri), ttl_seconds=ttl)
     else:
-        raise ValueError()
+        raise ValueError("Either mem or redis must be set.")
 
     context.injector.bind_instance(UndeliveredInterface, queue)
 

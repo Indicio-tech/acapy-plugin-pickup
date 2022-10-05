@@ -22,7 +22,7 @@ services:
     command: >
       start -it http 0.0.0.0 3000 -it ws 0.0.0.0 3002
         --plugin-config-value pickup.persistence=redis
-        --plugin-config-value pickup.redis.ttl=168 
+        --plugin-config-value pickup.redis.ttl_hours=168 
         --plugin-config-value pickup.redis.server=redis://localhost:6379/0
         -ot http
         -e http://acapy_pickup:3000
