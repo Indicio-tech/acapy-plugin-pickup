@@ -73,14 +73,6 @@ class InMemoryQueue(UndeliveredQueue):
             return msgs
         return []
 
-    async def inspect_all_messages_for_key(self, key: str):
-        """Return all messages for key.
-
-        Args:
-            key: The key to use for lookup
-        """
-        return [msg for msg in self.queue_by_key[key]]
-
     async def remove_messages_for_key(
         self, key: str, msgs: List[Union[OutboundMessage, str]]
     ):
