@@ -1,0 +1,28 @@
+ARG ACAPY_VERSION=0.7.4
+ARG ACAPY_TAG=py36-1.16-1_${ACAPY_VERSION}
+
+FROM python:3.6-slim AS base
+
+WORKDIR /usr/src/app
+# Install and configure poetry
+
+ENV POETRY_VERSION=1.1.11
+ENV POETRY_HOME=/opt/poetry
+
+RUN apt-get update && apt-get install --yes curl && apt-get clean \
+        && curl -sSL https://install.python-poetry.org | python -
+
+ENV PATH="/opt/poetry/bin:$PATH"
+RUN ls /opt/poetry/bin
+RUN poetry config virtualenvs.in-project true
+
+# Setup project
+RUN mkdir acapy_plugin_pickup && touch acapy_plugin_pickup/__init__.py
+COPY pyproject.toml poetry.lock README.md ./
+COPY acapy_plugin_pickup/ acapy_plugin_pickup/
+RUN poetry build
+
+FROM bcgovimages/aries-cloudagent:${ACAPY_TAG}
+COPY --from=base --chown=indy:indy /usr/src/app/dist/acapy_plugin_pickup-*-py3-none-any.whl /tmp/acapy_plugin_pickup-*-py3-none-any.whl
+RUN pip install /tmp/acapy_plugin_pickup-*-py3-none-any.whl && \
+        rm /tmp/acapy_plugin_pickup-*
