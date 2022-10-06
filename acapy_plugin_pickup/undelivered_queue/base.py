@@ -39,7 +39,7 @@ class UndeliveredQueue(ABC):
         """Remove specified message from queue for key."""
 
     @staticmethod
-    def message_id_for_outbound(msg: bytes) -> bytes:
+    def ident_from_message(msg: bytes) -> bytes:
         """Return a hash of an OutboundMessage to be used as the message identifier."""
         return b58encode(
             sha256(msg.encode("utf-8") if isinstance(msg, str) else msg).digest()

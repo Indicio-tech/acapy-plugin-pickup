@@ -54,7 +54,7 @@ class DeliveryRequest(AgentMessage):
             for msg in await queue.get_messages_for_key(key, self.limit):
 
                 attached_msg = Attach.data_base64(
-                    ident=UndeliveredQueue.message_id_for_outbound(msg).decode(),
+                    ident=UndeliveredQueue.ident_from_message(msg).decode(),
                     value=msg,
                 )
                 message_attachments.append(attached_msg)

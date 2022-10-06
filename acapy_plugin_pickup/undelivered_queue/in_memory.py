@@ -82,5 +82,5 @@ class InMemoryQueue(UndeliveredQueue):
             self.queue_by_key[recipient_key][:] = [
                 queued_message
                 for queued_message in self.queue_by_key[recipient_key]
-                if self.message_id_for_outbound(queued_message) not in msg_idents
+                if self.ident_from_message(queued_message) not in msg_idents
             ]

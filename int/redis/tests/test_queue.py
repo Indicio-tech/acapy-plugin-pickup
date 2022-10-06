@@ -1,5 +1,4 @@
 from os import getenv
-from typing import List
 
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.transport.outbound.message import OutboundMessage
@@ -174,7 +173,9 @@ async def test_persistedqueue(
     assert msg_from_queue[0] == msg.enc_payload
 
     # Check that message removal works, clear the queue
-    await queue.remove_messages_for_key(key, [message_id_for_outbound(msg.enc_payload)])
+    await queue.remove_messages_for_key(
+        key, [queue.ident_from_message(msg.enc_payload)]
+    )
     assert await queue.message_count_for_key(key) == 0
 
     # Testing expiration of messages, along with the above message removal
@@ -226,7 +227,9 @@ async def test_persistedqueue(
     ] == [msg for msg in await queue.get_messages_for_key(key, inspect_messages)]
 
     # Testing removing a specific message foe key
-    await queue.remove_messages_for_key(key, [message_id_for_outbound(msg.enc_payload)])
+    await queue.remove_messages_for_key(
+        key, [queue.ident_from_message(msg.enc_payload)]
+    )
     new_count = await queue.message_count_for_key(key)
     assert new_count == 1
     assert [another_msg.enc_payload] == [

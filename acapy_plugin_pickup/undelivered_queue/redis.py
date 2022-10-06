@@ -68,7 +68,7 @@ class RedisUndeliveredQueue(UndeliveredQueue):
 
         msg_loaded = msg
 
-        msg_ident = self.message_id_for_outbound(msg=msg_loaded)
+        msg_ident = self.ident_from_message(msg=msg_loaded)
         msg_score = time.time()
 
         await self.queue_by_key.zadd(recipient_key, {msg_ident: msg_score}, nx=True)
