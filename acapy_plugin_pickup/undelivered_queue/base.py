@@ -33,10 +33,6 @@ class UndeliveredQueue(ABC):
         """Return messages for the key up to the count specified."""
 
     @abstractmethod
-    async def inspect_all_messages_for_key(self, recipient_key: str) -> List[bytes]:
-        """Return all messages for key."""
-
-    @abstractmethod
     async def remove_messages_for_key(
         self, recipient_key: str, msg_idents: Iterable[bytes]
     ):
