@@ -4,7 +4,6 @@
 import logging
 import re
 import json
-from base64 import urlsafe_b64decode
 from os import getenv
 from typing import cast
 
@@ -14,6 +13,7 @@ from aries_cloudagent.core.profile import Profile
 from aries_cloudagent.core.protocol_registry import ProtocolRegistry
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
+from aries_cloudagent.wallet.util import b64_to_bytes
 from redis import asyncio as aioredis
 
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
@@ -112,7 +112,7 @@ async def undeliverable(profile: Profile, event: Event):
             )
 
     protected_headers = json.loads(
-        urlsafe_b64decode(json.loads(outbound.enc_payload)["protected"])
+        b64_to_bytes(json.loads(outbound.enc_payload)["protected"], urlsafe=True)
     )
 
     queue = profile.inject(UndeliveredQueue)
