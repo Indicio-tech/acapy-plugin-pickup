@@ -1,3 +1,12 @@
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "@abstract"
+]
+precision = 2
+skip_covered = true
+show_missing = true
+
 [tool.poetry]
 name = "acapy-plugin-pickup"
 version = "0.1.0"
@@ -7,9 +16,8 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.9,<4.0"
-aries-cloudagent = { version = "^0.7.4", extras = ["indy"]}
+aries-cloudagent = { version = "^0.7.4" }
 # ACA-Py Optionals
-python3-indy = { version = ">=1.11.1<2", optional = true }
 pydantic = "^1.8.1"
 typing-extensions = "^3.7.4"
 python-dateutil = "^2.8.1"
@@ -21,9 +29,7 @@ black = "^22.3.0"
 flake8 = "^3.9.1"
 pytest = "^6.2.3"
 pytest-asyncio = "^0.14.0"
-
-[tool.poetry.extras]
-indy = ["python3-indy"]
+pytest-cov = "^4.0.0"
 
 [build-system]
 requires = ["setuptools", "poetry-core>=1.0.0"]
