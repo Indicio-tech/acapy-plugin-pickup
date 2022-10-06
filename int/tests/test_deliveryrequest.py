@@ -59,8 +59,10 @@ async def test_delivery_request_with_queued(
         },
     )
 
-    response = await echo.get_message(connection)
-    assert response["@type"] == "https://didcomm.org/messagepickup/2.0/delivery"
+    delivery = await echo.get_message(
+        connection, msg_type="https://didcomm.org/messagepickup/2.0/delivery"
+    )
+    assert len(delivery["~attach"]) == 1
 
 
 @pytest.mark.asyncio
