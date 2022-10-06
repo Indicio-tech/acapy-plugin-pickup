@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import secrets
 from typing import Iterator, Optional
 
 import pytest
@@ -38,12 +39,12 @@ def backchannel():
 
 @pytest.fixture(scope="session")
 def echo_seed():
-    yield hashlib.sha256(b"acapy-pickup-int-test-runner").hexdigest()[:32]
+    yield secrets.token_hex(32)[:32]
 
 
 @pytest.fixture(scope="session")
 def agent_seed():
-    yield hashlib.sha256(b"acapy-pickup-agent").hexdigest()[:32]
+    yield secrets.token_hex(32)[:32]
 
 
 @pytest.fixture(scope="session")
