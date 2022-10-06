@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 from unittest import mock
 
 import pytest
-from acapy_plugin_pickup.undelivered_queue.redis_persisted_queue import (
+from acapy_plugin_pickup.undelivered_queue.redis import (
     RedisUndeliveredQueue,
 )
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget

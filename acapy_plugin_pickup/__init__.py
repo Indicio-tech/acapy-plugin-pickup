@@ -20,8 +20,8 @@ from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
 from .protocol.status import Status, StatusRequest
 from .undelivered_queue.base import UndeliveredQueue
-from .undelivered_queue.in_memory_queue import InMemoryQueue
-from .undelivered_queue.redis_persisted_queue import RedisUndeliveredQueue
+from .undelivered_queue.in_memory import InMemoryQueue
+from .undelivered_queue.redis import RedisUndeliveredQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
 LOGGER = logging.getLogger(__name__)

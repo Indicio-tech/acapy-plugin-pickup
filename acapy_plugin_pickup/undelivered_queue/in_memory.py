@@ -8,22 +8,22 @@ from .base import UndeliveredQueue, message_id_for_outbound
 
 
 class InMemoryQueue(UndeliveredQueue):
-    """
-    InMemoryQueue class.
+    """In memory undelivered queue.
+
     Manages undelivered messages.
     """
 
     def __init__(self) -> None:
-        """
-        Initialize an instance of InMemoryQueue.
+        """Initialize an instance of InMemoryQueue.
+
         This uses an in memory structure to queue messages.
         """
 
         self.queue_by_key: dict[str, List[OutboundMessage]] = {}
 
     async def add_message(self, msg: OutboundMessage):
-        """
-        Add an OutboundMessage to delivery queue.
+        """Add an OutboundMessage to delivery queue.
+
         The message is added once per recipient key
         Args:
             msg: The OutboundMessage to add
@@ -40,8 +40,8 @@ class InMemoryQueue(UndeliveredQueue):
         self.queue_by_key[recipient_key].append(msg)
 
     async def has_message_for_key(self, key: str):
-        """
-        Check for queued messages by key.
+        """Check for queued messages by key.
+
         Args:
             key: The key to use for lookup
         """
@@ -50,8 +50,8 @@ class InMemoryQueue(UndeliveredQueue):
         return False
 
     async def message_count_for_key(self, key: str):
-        """
-        Count of queued messages by key.
+        """Count of queued messages by key.
+
         Args:
             key: The key to use for lookup
         """
@@ -61,8 +61,8 @@ class InMemoryQueue(UndeliveredQueue):
             return 0
 
     async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
-        """
-        Return a matching message.
+        """Return a matching message.
+
         Args:
             key: The key to use for lookup
             count: the number of messages to return
@@ -74,8 +74,8 @@ class InMemoryQueue(UndeliveredQueue):
         return []
 
     async def inspect_all_messages_for_key(self, key: str):
-        """
-        Return all messages for key.
+        """Return all messages for key.
+
         Args:
             key: The key to use for lookup
         """
@@ -84,8 +84,8 @@ class InMemoryQueue(UndeliveredQueue):
     async def remove_messages_for_key(
         self, key: str, msgs: List[Union[OutboundMessage, str]]
     ):
-        """
-        Remove specified message from queue for key.
+        """Remove specified message from queue for key.
+
         Args:
             key: The key to use for lookup
             msgs: The message to remove from the queue, or the hashes thereof
