@@ -1,0 +1,33 @@
+name: Upload Package
+
+on:
+  release:
+    types: [created]
+
+env:
+  PYTHON_VERSION: 3.7
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install poetry
+        run: pipx install poetry
+      - name: Setup Python
+        id: setup
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'poetry'
+      - name: Install dependencies
+        if: steps.setup.outputs.cache-hit != 'true'
+        run: poetry install
+      - name: Confidence check (run tests)
+        run: poetry run pytest tests
+      - name: Build package
+        run: poetry build
+      - name: Publish package
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{secrets.pypi_upload}}
+        run: poetry publish

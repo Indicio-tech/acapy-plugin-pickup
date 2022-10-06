@@ -1,24 +1,25 @@
 [tool.poetry]
 name = "acapy-plugin-pickup"
-version = "0.1.0"
+version = "0.1.0-post1"
 description = "Pickup Protocol for ACA-Py"
-authors = ["Daniel Bluhm <dbluhm@pm.me>"]
+authors = ["Daniel Bluhm <dbluhm@pm.me>", "Micah Peltier <micah6_8@yahoo.com>", "Peter Strobel <peter@indicio.tech>"]
 license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.9,<4.0"
-aries-cloudagent = { version = "^0.7.4", extras = ["indy"]}
-# ACA-Py Optionals
-python3-indy = { version = ">=1.11.1<2", optional = true }
+aries-cloudagent = { version = "^0.7.4" }
 pydantic = "^1.8.1"
 typing-extensions = "^3.7.4"
 python-dateutil = "^2.8.1"
 redis = "^4.3.3"
 
+# ACA-Py Optionals
+python3-indy = { version = ">=1.11.1<2", optional = true }
+
 [tool.poetry.dev-dependencies]
 pre-commit = "^2.12.0"
-black = "^22.3.0"
-flake8 = "^3.9.1"
+black = "^22.6.0"
+flake8 = "^5.0.4"
 pytest = "^6.2.3"
 pytest-asyncio = "^0.14.0"
 
