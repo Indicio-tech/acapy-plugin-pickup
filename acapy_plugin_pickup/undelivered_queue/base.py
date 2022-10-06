@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from hashlib import sha256
-from typing import List, Union
+from typing import Iterable, List, Union
 
 from base58 import b58encode
 
@@ -34,13 +34,13 @@ class UndeliveredInterface(ABC):
 
     @abstractmethod
     async def remove_messages_for_key(
-        self, recipient_key: str, msgs: List[Union[bytes, str]]
+        self, recipient_key: str, msg_idents: Iterable[bytes]
     ):
         """Remove specified message from queue for key."""
 
 
-def message_id_for_outbound(msg: bytes) -> str:
+def message_id_for_outbound(msg: bytes) -> bytes:
     """Return a hash of an OutboundMessage to be used as the message identifier."""
     return b58encode(
         sha256(msg.encode("utf-8") if isinstance(msg, str) else msg).digest()
-    ).decode("utf-8")
+    )

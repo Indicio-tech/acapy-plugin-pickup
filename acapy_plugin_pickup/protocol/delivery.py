@@ -54,7 +54,7 @@ class DeliveryRequest(AgentMessage):
             for msg in await queue.get_messages_for_key(key, self.limit):
 
                 attached_msg = Attach.data_base64(
-                    ident=message_id_for_outbound(msg), value=msg
+                    ident=message_id_for_outbound(msg).decode(), value=msg
                 )
                 message_attachments.append(attached_msg)
 
@@ -100,7 +100,9 @@ class MessagesReceived(AgentMessage):
         key = context.message_receipt.sender_verkey
 
         if await queue.has_message_for_key(key):
-            await queue.remove_messages_for_key(key, self.message_id_list)
+            await queue.remove_messages_for_key(
+                key, [msg_ident.encode() for msg_ident in self.message_id_list]
+            )
 
         response = Status(message_count=await queue.message_count_for_key(key))
         response.assign_thread_from(self)

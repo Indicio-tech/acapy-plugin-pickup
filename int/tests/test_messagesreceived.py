@@ -35,15 +35,6 @@ async def test_messages_received_no_id(echo: EchoClient, connection: ConnectionI
 async def test_messages_received_with_id(echo: EchoClient, connection: ConnectionInfo):
     """Testing that accurate ID's remove messages from the queue."""
 
-    for _ in range(2):
-        await echo.send_message(
-            connection,
-            {
-                "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping",
-                "response_resquested": True,
-            },
-        )
-
     await echo.send_message(
         connection,
         {
@@ -53,6 +44,15 @@ async def test_messages_received_with_id(echo: EchoClient, connection: Connectio
     )
     initial_status = await echo.get_message(connection)
     inital_count = initial_status["message_count"]
+
+    for _ in range(2):
+        await echo.send_message(
+            connection,
+            {
+                "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping",
+                "response_resquested": True,
+            },
+        )
 
     await echo.send_message(
         connection,
@@ -83,7 +83,7 @@ async def test_messages_received_with_id(echo: EchoClient, connection: Connectio
     assert final_status["@type"] == "https://didcomm.org/messagepickup/2.0/status"
     final_count = final_status["message_count"]
 
-    assert final_count == inital_count - 2
+    assert final_count == inital_count
 
 
 @pytest.mark.asyncio
