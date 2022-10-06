@@ -19,7 +19,7 @@ from redis import asyncio as aioredis
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
 from .protocol.status import Status, StatusRequest
-from .undelivered_queue.base import UndeliveredInterface
+from .undelivered_queue.base import UndeliveredQueue
 from .undelivered_queue.in_memory_queue import InMemoryQueue
 from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
 
@@ -62,7 +62,7 @@ async def setup(context: InjectionContext):
     else:
         raise ValueError("Either mem or redis must be set.")
 
-    context.injector.bind_instance(UndeliveredInterface, queue)
+    context.injector.bind_instance(UndeliveredQueue, queue)
 
 
 async def setup_redis(settings):
@@ -115,7 +115,7 @@ async def undeliverable(profile: Profile, event: Event):
         urlsafe_b64decode(json.loads(outbound.enc_payload)["protected"])
     )
 
-    queue = profile.inject(UndeliveredInterface)
+    queue = profile.inject(UndeliveredQueue)
     for recipient in protected_headers["recipients"]:
         await queue.add_message(
             recipient_key=recipient["header"]["kid"], msg=outbound.enc_payload

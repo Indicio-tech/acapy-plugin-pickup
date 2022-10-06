@@ -7,12 +7,12 @@ from typing import Iterable, List, Optional, cast
 
 from redis import asyncio as aioredis
 
-from .base import UndeliveredInterface, message_id_for_outbound
+from .base import UndeliveredQueue, message_id_for_outbound
 
 LOGGER = logging.getLogger(__name__)
 
 
-class RedisPersistedQueue(UndeliveredInterface):
+class RedisPersistedQueue(UndeliveredQueue):
     """PersistedQueue Class
 
     Manages undelivered messages.

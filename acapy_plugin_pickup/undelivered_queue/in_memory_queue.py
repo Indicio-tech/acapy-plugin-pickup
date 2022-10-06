@@ -4,10 +4,10 @@ from typing import List, Union
 
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 
-from .base import UndeliveredInterface, message_id_for_outbound
+from .base import UndeliveredQueue, message_id_for_outbound
 
 
-class InMemoryQueue(UndeliveredInterface):
+class InMemoryQueue(UndeliveredQueue):
     """
     InMemoryQueue class.
     Manages undelivered messages.

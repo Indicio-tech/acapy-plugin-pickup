@@ -7,7 +7,7 @@ from typing import Iterable, List, Union
 from base58 import b58encode
 
 
-class UndeliveredInterface(ABC):
+class UndeliveredQueue(ABC):
     """Interface for undelivered message queue."""
 
     @abstractmethod

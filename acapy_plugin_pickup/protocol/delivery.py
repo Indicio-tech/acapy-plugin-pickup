@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 
 from ..acapy import AgentMessage, Attach
 from ..acapy.error import HandlerException
-from ..undelivered_queue.base import UndeliveredInterface, message_id_for_outbound
+from ..undelivered_queue.base import UndeliveredQueue, message_id_for_outbound
 from .status import Status
 
 LOGGER = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class DeliveryRequest(AgentMessage):
                 "route set to all"
             )
 
-        queue = context.inject(UndeliveredInterface)
+        queue = context.inject(UndeliveredQueue)
 
         key = context.message_receipt.sender_verkey
         message_attachments = []
@@ -96,7 +96,7 @@ class MessagesReceived(AgentMessage):
                 "route set to all"
             )
 
-        queue = context.inject(UndeliveredInterface)
+        queue = context.inject(UndeliveredQueue)
         key = context.message_receipt.sender_verkey
 
         if await queue.has_message_for_key(key):
