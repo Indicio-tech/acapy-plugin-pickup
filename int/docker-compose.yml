@@ -30,7 +30,7 @@ services:
         --plugin acapy_plugin_pickup
         --no-ledger
         --log-level debug
-        --wallet-type indy
+        --wallet-type askar
         --wallet-name test
         --wallet-key test
         --auto-provision
