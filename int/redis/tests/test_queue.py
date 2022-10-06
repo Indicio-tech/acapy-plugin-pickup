@@ -11,7 +11,6 @@ import time
 from acapy_plugin_pickup.undelivered_queue.redis import (
     RedisUndeliveredQueue,
 )
-from acapy_plugin_pickup.undelivered_queue.base import message_id_for_outbound
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ from typing import Iterable, List, Optional, cast
 
 from redis import asyncio as aioredis
 
-from .base import UndeliveredQueue, UndeliveredQueueError, message_id_for_outbound
+from .base import UndeliveredQueue, UndeliveredQueueError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class RedisUndeliveredQueue(UndeliveredQueue):
 
         msg_loaded = msg
 
-        msg_ident = message_id_for_outbound(msg=msg_loaded)
+        msg_ident = self.message_id_for_outbound(msg=msg_loaded)
         msg_score = time.time()
 
         await self.queue_by_key.zadd(recipient_key, {msg_ident: msg_score}, nx=True)

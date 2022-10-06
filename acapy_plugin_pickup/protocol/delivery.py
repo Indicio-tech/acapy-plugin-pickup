@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 
 from ..acapy import AgentMessage, Attach
 from ..acapy.error import HandlerException
-from ..undelivered_queue.base import UndeliveredQueue, message_id_for_outbound
+from ..undelivered_queue.base import UndeliveredQueue
 from .status import Status
 
 LOGGER = logging.getLogger(__name__)
@@ -54,7 +54,8 @@ class DeliveryRequest(AgentMessage):
             for msg in await queue.get_messages_for_key(key, self.limit):
 
                 attached_msg = Attach.data_base64(
-                    ident=message_id_for_outbound(msg).decode(), value=msg
+                    ident=UndeliveredQueue.message_id_for_outbound(msg).decode(),
+                    value=msg,
                 )
                 message_attachments.append(attached_msg)
 
