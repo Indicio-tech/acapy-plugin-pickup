@@ -21,7 +21,7 @@ from .protocol.live_mode import LiveDeliveryChange
 from .protocol.status import Status, StatusRequest
 from .undelivered_queue.base import UndeliveredQueue
 from .undelivered_queue.in_memory_queue import InMemoryQueue
-from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
+from .undelivered_queue.redis_persisted_queue import RedisUndeliveredQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
 LOGGER = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ async def setup(context: InjectionContext):
     if persistence == "mem":
         queue = InMemoryQueue()
     elif persistence == "redis":
-        queue = RedisPersistedQueue(
+        queue = RedisUndeliveredQueue(
             redis=await aioredis.from_url(redis_uri), ttl_seconds=ttl
         )
     else:
@@ -79,7 +79,7 @@ async def setup_redis(settings):
     if not redis_uri:
         raise ValueError("redis_uri must be specified.")
 
-    return RedisPersistedQueue(
+    return RedisUndeliveredQueue(
         redis=await aioredis.from_url(redis_uri), ttl_seconds=60 * 60 * ttl
     )
 

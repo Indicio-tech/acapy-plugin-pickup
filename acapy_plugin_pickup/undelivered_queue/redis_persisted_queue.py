@@ -12,7 +12,7 @@ from .base import UndeliveredQueue, message_id_for_outbound
 LOGGER = logging.getLogger(__name__)
 
 
-class RedisPersistedQueue(UndeliveredQueue):
+class RedisUndeliveredQueue(UndeliveredQueue):
     """PersistedQueue Class
 
     Manages undelivered messages.

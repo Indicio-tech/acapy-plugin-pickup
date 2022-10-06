@@ -3,11 +3,10 @@ from unittest import mock
 
 import pytest
 from acapy_plugin_pickup.undelivered_queue.redis_persisted_queue import (
-    RedisPersistedQueue,
+    RedisUndeliveredQueue,
 )
 from aries_cloudagent.connections.models.connection_target import ConnectionTarget
 from aries_cloudagent.transport.outbound.message import OutboundMessage
-from pyexpat.errors import messages
 from redis.asyncio import Redis
 
 
@@ -42,7 +41,7 @@ def mock_redis():
 
 @pytest.fixture
 def queue(mock_redis):
-    yield RedisPersistedQueue(redis=mock_redis)
+    yield RedisUndeliveredQueue(redis=mock_redis)
 
 
 @pytest.fixture
@@ -57,7 +56,7 @@ class CoroutineMock(mock.MagicMock):
 
 @pytest.mark.asyncio
 async def test_add_message(
-    queue: RedisPersistedQueue,
+    queue: RedisUndeliveredQueue,
     key: str,
     msg: OutboundMessage,
     mock_redis: mock.MagicMock,
@@ -75,7 +74,7 @@ async def test_add_message(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("lindex_ret", "expected"), [(None, False), (1, True)])
 async def test_has_message_for_key(
-    queue: RedisPersistedQueue,
+    queue: RedisUndeliveredQueue,
     key: str,
     mock_redis: mock.MagicMock,
     lindex_ret: Any,
@@ -133,7 +132,7 @@ async def test_has_message_for_key(
     ],
 )
 async def test_get_messages_for_key(
-    queue: RedisPersistedQueue,
+    queue: RedisUndeliveredQueue,
     key: str,
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -185,7 +184,7 @@ async def test_get_messages_for_key(
     ],
 )
 async def test_inspect_all_messages_for_key(
-    queue: RedisPersistedQueue,
+    queue: RedisUndeliveredQueue,
     key: str,
     mock_redis: mock.MagicMock,
     monkeypatch: pytest.MonkeyPatch,
@@ -221,7 +220,7 @@ async def test_inspect_all_messages_for_key(
     ],
 )
 async def test_remove_messages_for_key(
-    queue: RedisPersistedQueue,
+    queue: RedisUndeliveredQueue,
     key: str,
     msg_queue: list,
     messages: Dict[str, bytes],
