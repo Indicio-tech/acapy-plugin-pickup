@@ -2,9 +2,13 @@
 
 from abc import ABC, abstractmethod
 from hashlib import sha256
-from typing import Iterable, List, Union
+from typing import Iterable, List, Optional
 
 from base58 import b58encode
+
+
+class UndeliveredQueueError(Exception):
+    """Generic error for undelivered queue."""
 
 
 class UndeliveredQueue(ABC):
@@ -23,13 +27,13 @@ class UndeliveredQueue(ABC):
         """Count of queued messages by key."""
 
     @abstractmethod
-    async def get_messages_for_key(self, recipient_key: str, count: int) -> List[bytes]:
+    async def get_messages_for_key(
+        self, recipient_key: str, count: Optional[int] = None
+    ) -> List[bytes]:
         """Return messages for the key up to the count specified."""
 
     @abstractmethod
-    async def inspect_all_messages_for_key(
-        self, recipient_key: str
-    ) -> Union[List[bytes], None]:
+    async def inspect_all_messages_for_key(self, recipient_key: str) -> List[bytes]:
         """Return all messages for key."""
 
     @abstractmethod

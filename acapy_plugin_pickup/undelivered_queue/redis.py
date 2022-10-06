@@ -7,15 +7,15 @@ from typing import Iterable, List, Optional, cast
 
 from redis import asyncio as aioredis
 
-from .base import UndeliveredQueue, message_id_for_outbound
+from .base import UndeliveredQueue, UndeliveredQueueError, message_id_for_outbound
 
 LOGGER = logging.getLogger(__name__)
 
 
 class RedisUndeliveredQueue(UndeliveredQueue):
-    """PersistedQueue Class
+    """Redis Undelivered Queue.
 
-    Manages undelivered messages.
+    Stores undelivered messages in Redis.
 
     To support expiry of messages, the message queue is implemented in the
     following manner:
@@ -45,8 +45,8 @@ class RedisUndeliveredQueue(UndeliveredQueue):
     def __init__(
         self, redis: aioredis.Redis, ttl_seconds: Optional[int] = None
     ) -> None:
-        """
-        Initialize an instance of PersistenceQueue.
+        """Initialize an instance of PersistenceQueue.
+
         This uses an in memory structure to queue messages,
         though the active Redis server prevents losing
         the queue should your machine turn off.
@@ -57,13 +57,12 @@ class RedisUndeliveredQueue(UndeliveredQueue):
         self.ttl_seconds = ttl_seconds or 60 * 60 * 24 * 3  # three days
 
     async def add_message(self, recipient_key: str, msg: bytes):
-        """
-        Add an OutboundMessage encrypted payload to
-        delivery queue. The message is added once
-        per recipient key
+        """Add an OutboundMessage encrypted payload to delivery queue.
+
+        The message is added once per recipient key.
+
         Args:
-            key: The recipient key of the connected
-            agent
+            recipient_key: The recipient key of the connected agent
             msg: The enc_payload to add
         """
 
@@ -72,67 +71,57 @@ class RedisUndeliveredQueue(UndeliveredQueue):
         msg_ident = message_id_for_outbound(msg=msg_loaded)
         msg_score = time.time()
 
-        key = recipient_key
-
-        await self.queue_by_key.zadd(key, {msg_ident: msg_score}, nx=True)
-        await self.queue_by_key.expire(key, timedelta(seconds=self.ttl_seconds))
+        await self.queue_by_key.zadd(recipient_key, {msg_ident: msg_score}, nx=True)
+        await self.queue_by_key.expire(
+            recipient_key, timedelta(seconds=self.ttl_seconds)
+        )
         await self.queue_by_key.setex(
             msg_ident, timedelta(seconds=self.ttl_seconds), msg_loaded
         )
 
     async def has_message_for_key(self, recipient_key: str):
-        """
-        Check for queued messages by key.
+        """Check for queued messages by key.
+
         Args:
-            key: The key to use for lookup
+            recipient_key: The key to use for lookup
         """
-        await self.expire_helper(recipient_key)
-        msg_ident: List[bytes] = await self.queue_by_key.zrange(recipient_key, 0, 0)
-        return bool(msg_ident)
+        await self._expire_helper(recipient_key)
+        count: int = await self.queue_by_key.zcard(recipient_key)
+        return bool(count)
 
-    async def message_count_for_key(self, key: str):
-        """
-        Count of queued messages by key.
+    async def message_count_for_key(self, recipient_key: str):
+        """Count of queued messages by key.
+
         Args:
-            key: The key to use for lookup
+            recipient_key: The key to use for lookup
         """
 
-        await self.expire_helper(key)
-
-        count: int = await self.queue_by_key.zcard(key)
+        await self._expire_helper(recipient_key)
+        count: int = await self.queue_by_key.zcard(recipient_key)
         return count
 
     async def get_messages_for_key(
-        self, recipient_key: str, count: int = 0
+        self, recipient_key: str, count: Optional[int] = None
     ) -> List[bytes]:
-        """
-        Return a number of messages for a key.
+        """Return a number of messages for a key.
+
         Args:
-            key: The key to use for lookup
+            recipient_key: The key to use for lookup
             count: the number of messages to return
         """
+        if count is None:
+            count = 0
 
-        await self.expire_helper(recipient_key)
+        await self._expire_helper(recipient_key)
 
         msg_idents: List[bytes] = await self.queue_by_key.zrange(
             recipient_key, 0, count - 1
         )
-        msgs = await self.queue_by_key.mget(msg_idents)
-
-        return [msg for msg in msgs if msg is not None]
-
-    async def inspect_all_messages_for_key(self, recipient_key: str) -> List[bytes]:
-        """
-        Return all messages for key.
-        Args:
-            key: The key to use for lookup
-        """
-        await self.expire_helper(recipient_key)
-        msg_idents = await self.queue_by_key.zrange(recipient_key, 0, -1)
         msgs = []
         if msg_idents:
-            msgs = await self.queue_by_key.mget(msg_idents)
-        return cast(List[bytes], msgs)
+            msgs = cast(List[Optional[bytes]], await self.queue_by_key.mget(msg_idents))
+
+        return self._validate_retrieved_message_content_list(msgs)
 
     async def remove_messages_for_key(
         self, recipient_key: str, msg_idents: Iterable[bytes]
@@ -140,22 +129,36 @@ class RedisUndeliveredQueue(UndeliveredQueue):
         """Remove specified message from queue for key.
 
         Args:
-            key: The key to use for lookup
+            recipient_key: The key to use for lookup
             msgs: Either (1) the message to remove from the queue
                   or (2) the hash (as described in the above function)
                   of the message payload, which serves as the identifier
         """
-        await self.expire_helper(recipient_key)
+        await self._expire_helper(recipient_key)
         known_msg_idents = set(await self.queue_by_key.zrange(recipient_key, 0, -1))
         intersection = known_msg_idents & set(msg_idents)
         if intersection:
             await self.queue_by_key.zrem(recipient_key, *intersection)
             await self.queue_by_key.delete(*intersection)
 
-    async def expire_helper(self, key: str):
-        # TODO: This may need alterations when we have the queue refresh conversation
+    async def _expire_helper(self, recipient_key: str):
+        """Remove expired msg idents from queue."""
         msg_idents = await self.queue_by_key.zrange(
-            key, 0, (time.time() - self.ttl_seconds), byscore=True  # pyright: ignore
+            recipient_key,
+            0,
+            (time.time() - self.ttl_seconds),  # pyright: ignore
+            byscore=True,
         )
         if msg_idents:
-            await self.queue_by_key.zrem(key, *msg_idents)
+            await self.queue_by_key.zrem(recipient_key, *msg_idents)
+
+    def _validate_retrieved_message_content_list(
+        self, msgs: List[Optional[bytes]]
+    ) -> List[bytes]:
+        """Validate retrieved messages."""
+        if [msg for msg in msgs if msg is None]:
+            raise UndeliveredQueueError(
+                "At least one of many retrieved messages was None"
+            )
+
+        return cast(List[bytes], msgs)
