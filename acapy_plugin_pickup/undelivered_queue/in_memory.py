@@ -1,10 +1,8 @@
 """In-Memory queue for undelivered messages."""
 
-from typing import List, Union
+from typing import Iterable, List, Optional
 
-from aries_cloudagent.transport.outbound.message import OutboundMessage
-
-from .base import UndeliveredQueue, message_id_for_outbound
+from .base import UndeliveredQueue
 
 
 class InMemoryQueue(UndeliveredQueue):
@@ -18,63 +16,61 @@ class InMemoryQueue(UndeliveredQueue):
 
         This uses an in memory structure to queue messages.
         """
+        self.queue_by_key: dict[str, List[bytes]] = {}
 
-        self.queue_by_key: dict[str, List[OutboundMessage]] = {}
-
-    async def add_message(self, msg: OutboundMessage):
+    async def add_message(self, recipient_key: str, msg: bytes):
         """Add an OutboundMessage to delivery queue.
 
         The message is added once per recipient key
         Args:
             msg: The OutboundMessage to add
         """
-        keys: List[str] = []
-        if msg.target:
-            keys.extend(msg.target.recipient_keys)
-        if msg.reply_to_verkey:
-            keys.append(msg.reply_to_verkey)
-
-        recipient_key = keys[0]
         if recipient_key not in self.queue_by_key:
             self.queue_by_key[recipient_key] = []
         self.queue_by_key[recipient_key].append(msg)
 
-    async def has_message_for_key(self, key: str):
+    async def has_message_for_key(self, recipient_key: str):
         """Check for queued messages by key.
 
         Args:
             key: The key to use for lookup
         """
-        if key in self.queue_by_key and len(self.queue_by_key[key]):
-            return True
-        return False
+        return (
+            recipient_key
+            and self.queue_by_key
+            and len(self.queue_by_key[recipient_key])
+        )
 
-    async def message_count_for_key(self, key: str):
+    async def message_count_for_key(self, recipient_key: str):
         """Count of queued messages by key.
 
         Args:
             key: The key to use for lookup
         """
-        if key in self.queue_by_key:
-            return len(self.queue_by_key[key])
-        else:
-            return 0
+        if recipient_key in self.queue_by_key:
+            return len(self.queue_by_key[recipient_key])
+        return 0
 
-    async def get_messages_for_key(self, key: str, count: int) -> List[OutboundMessage]:
+    async def get_messages_for_key(
+        self, recipient_key: str, count: Optional[int] = None
+    ) -> List[bytes]:
         """Return a matching message.
 
         Args:
             key: The key to use for lookup
             count: the number of messages to return
         """
+        msgs = []
+        if recipient_key in self.queue_by_key:
+            count = (
+                count if count is not None else len(self.queue_by_key[recipient_key])
+            )
+            msgs = [msg for msg in self.queue_by_key[recipient_key][:count]]
 
-        if key in self.queue_by_key:
-            msgs = [msg for msg in self.queue_by_key[key][0:count]]
-            return msgs
-        return []
+        return msgs
 
     async def remove_messages_for_key(
-        self, key: str, msgs: List[Union[OutboundMessage, str]]
+        self, recipient_key: str, msg_idents: Iterable[bytes]
     ):
         """Remove specified message from queue for key.
 
@@ -82,10 +78,9 @@ class InMemoryQueue(UndeliveredQueue):
             key: The key to use for lookup
             msgs: The message to remove from the queue, or the hashes thereof
         """
-
-        self.queue_by_key[key][:] = [
-            queued_message
-            for queued_message in self.queue_by_key[key]
-            if queued_message.enc_payload is None
-            or message_id_for_outbound(queued_message) not in msgs
-        ]
+        if recipient_key in self.queue_by_key:
+            self.queue_by_key[recipient_key][:] = [
+                queued_message
+                for queued_message in self.queue_by_key[recipient_key]
+                if self.message_id_for_outbound(queued_message) not in msg_idents
+            ]
