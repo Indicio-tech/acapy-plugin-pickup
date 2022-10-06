@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 from unittest import mock
 
 import pytest
+from acapy_plugin_pickup.undelivered_queue.base import UndeliveredQueueError
 from acapy_plugin_pickup.undelivered_queue.redis import (
     RedisUndeliveredQueue,
 )
@@ -31,6 +32,14 @@ def key():
 class CoroutineMock(mock.MagicMock):
     async def __call__(self, *args, **kwargs):
         return super().__call__(*args, **kwargs)
+
+
+def test_ttl_seconds_init_constraints(mock_redis):
+    """Test ttl seconds init constraints"""
+    with pytest.raises(ValueError):
+        RedisUndeliveredQueue(redis=mock_redis, ttl_seconds=0)
+    with pytest.raises(ValueError):
+        RedisUndeliveredQueue(redis=mock_redis, ttl_seconds=-10)
 
 
 @pytest.mark.asyncio
@@ -63,6 +72,22 @@ async def test_has_message_for_key(
     monkeypatch.setattr(mock_redis, "zcard", CoroutineMock(return_value=lindex_ret))
     monkeypatch.setattr(queue, "_expire_helper", CoroutineMock())
     assert await queue.has_message_for_key(key) == expected
+    mock_redis.zcard.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("lindex_ret", "expected"), [(0, False), (1, True)])
+async def test_message_count_for_key(
+    queue: RedisUndeliveredQueue,
+    key: str,
+    mock_redis: mock.MagicMock,
+    lindex_ret: Any,
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(mock_redis, "zcard", CoroutineMock(return_value=lindex_ret))
+    monkeypatch.setattr(queue, "_expire_helper", CoroutineMock())
+    assert await queue.message_count_for_key(key) == expected
     mock_redis.zcard.assert_called_once()
 
 
@@ -104,20 +129,12 @@ async def test_get_messages_for_key(
     messages: Dict[str, bytes],
     expected: Optional[bytes],
 ):
-    async def _zrem(key: str, *msg_idents):
-        if key not in messages or messages[key] is None:
-            return None
-        for member in msg_idents:
-            if member in messages[key]:
-                del member
-
     async def _mget(key: str):
-
         return [message for message in messages.values() if message is not None]
 
     monkeypatch.setattr(mock_redis, "zrange", CoroutineMock(return_value=msg_queue))
     monkeypatch.setattr(mock_redis, "mget", _mget)
-    monkeypatch.setattr(mock_redis, "zrem", _zrem)
+    monkeypatch.setattr(queue, "_expire_helper", CoroutineMock())
 
     msg = await queue.get_messages_for_key(key, 0)
     if expected is None:
@@ -125,6 +142,44 @@ async def test_get_messages_for_key(
     else:
         assert msg
         assert expected == msg[0]
+
+
+@pytest.mark.asyncio
+async def test_get_messages_for_key_all(
+    queue: RedisUndeliveredQueue,
+    key: str,
+    mock_redis: mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async def _mget(key: str):
+        return [b"msg", b"msg"]
+
+    monkeypatch.setattr(mock_redis, "zrange", CoroutineMock(return_value=["1", "2"]))
+    monkeypatch.setattr(mock_redis, "mget", _mget)
+    monkeypatch.setattr(queue, "_expire_helper", CoroutineMock())
+
+    msgs = await queue.get_messages_for_key(key)
+    assert msgs == [b"msg", b"msg"]
+
+
+@pytest.mark.asyncio
+async def test_get_messages_for_key_bad_message_contents(
+    queue: RedisUndeliveredQueue,
+    key: str,
+    mock_redis: mock.MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    async def _mget(key: str):
+        return [b"msg", b"msg", None]
+
+    monkeypatch.setattr(
+        mock_redis, "zrange", CoroutineMock(return_value=["1", "2", "3"])
+    )
+    monkeypatch.setattr(mock_redis, "mget", _mget)
+    monkeypatch.setattr(queue, "_expire_helper", CoroutineMock())
+
+    with pytest.raises(UndeliveredQueueError):
+        await queue.get_messages_for_key(key)
 
 
 @pytest.mark.asyncio
@@ -173,3 +228,17 @@ async def test_remove_messages_for_key(
         del_mock.assert_not_called()
     else:
         del_mock.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_expire_helper(
+    queue: RedisUndeliveredQueue,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_redis: mock.MagicMock,
+):
+    """Test expire helper."""
+    monkeypatch.setattr(
+        mock_redis, "zrange", CoroutineMock(return_value=[b"1", b"2", b"3"])
+    )
+    monkeypatch.setattr(mock_redis, "zrem", CoroutineMock())
+    await queue._expire_helper("key")
