@@ -1,11 +1,11 @@
 """Common fixtures for testing."""
 
 import asyncio
-import hashlib
 import logging
 import os
 import secrets
 from typing import Iterator, Optional
+from echo_agent.models import ConnectionInfo
 
 import pytest
 from acapy_client.api.connection import create_static, delete_connection, set_metadata
@@ -101,8 +101,9 @@ def echo_agent(echo_endpoint: str):
 
 
 @pytest.fixture(scope="session")
-async def echo(echo_agent: EchoClient):
+async def echo(echo_agent: EchoClient, connection: ConnectionInfo):
     async with echo_agent as client:
+        await client.get_messages(connection)
         yield client
 
 
