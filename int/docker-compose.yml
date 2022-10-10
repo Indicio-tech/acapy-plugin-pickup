@@ -68,6 +68,8 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile.test.runner
+    volumes:
+      - ./tests:/usr/src/app/tests:z,ro
     environment:
       - WAIT_BEFORE_HOSTS=3
       - WAIT_HOSTS=acapy_pickup:3000,echo:3002

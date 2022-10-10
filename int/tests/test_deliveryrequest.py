@@ -28,7 +28,7 @@ async def test_delivery_request_empty_queue(
 
 @pytest.mark.asyncio
 async def test_delivery_request_with_queued(
-    echo: EchoClient, connection: ConnectionInfo
+    echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str
 ):
     await echo.send_message(
         connection,
@@ -50,18 +50,21 @@ async def test_delivery_request_with_queued(
         },
     )
 
-    await echo.send_message(
-        connection,
-        {
-            "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
-            "limit": 1,
-            "~transport": {"return_route": "all"},
-        },
-    )
+    async with echo.session(connection, ws_endpoint) as session:
+        await echo.send_message_to_session(
+            session,
+            {
+                "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
+                "limit": 1,
+                "~transport": {"return_route": "all"},
+            },
+        )
+        delivery = await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/delivery",
+        )
 
-    delivery = await echo.get_message(
-        connection, msg_type="https://didcomm.org/messagepickup/2.0/delivery"
-    )
     assert len(delivery["~attach"]) == 1
 
 
