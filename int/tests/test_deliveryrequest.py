@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 import pytest
 from echo_agent.client import EchoClient
@@ -9,21 +10,21 @@ LOGGER = logging.getLogger(__name__)
 
 @pytest.mark.asyncio
 async def test_delivery_request_empty_queue(
-    echo: EchoClient, connection: ConnectionInfo
+    echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str
 ):
 
     """Testing the Delivery Request with no queued messages."""
-    await echo.send_message(
-        connection,
-        {
-            "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
-            "limit": 1,
-            "~transport": {"return_route": "all"},
-        },
-    )
+    async with echo.session(connection, ws_endpoint) as session:
+        await echo.send_message_to_session(
+            session,
+            {
+                "@type": "https://didcomm.org/messagepickup/2.0/delivery-request",
+                "limit": 1,
+                "~transport": {"return_route": "all"},
+            },
+        )
 
-    status = await echo.get_message(connection)
-    assert status["@type"] == "https://didcomm.org/messagepickup/2.0/status"
+        await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status")
 
 
 @pytest.mark.asyncio
@@ -49,6 +50,7 @@ async def test_delivery_request_with_queued(
             "response_resquested": True,
         },
     )
+    await asyncio.sleep(1)
 
     async with echo.session(connection, ws_endpoint) as session:
         await echo.send_message_to_session(
@@ -91,6 +93,5 @@ async def test_delivery_request_multi_delivery(
             },
         )
 
-        msg = await echo.get_message(connection, session=session, timeout=1)
-        assert msg["@type"] == "https://didcomm.org/messagepickup/2.0/delivery"
+        msg = await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/delivery", timeout=1)
         assert len(msg["~attach"]) == 3

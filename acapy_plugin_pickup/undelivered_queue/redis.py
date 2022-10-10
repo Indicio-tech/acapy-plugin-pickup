@@ -67,6 +67,7 @@ class RedisUndeliveredQueue(UndeliveredQueue):
         """
 
         msg_loaded = msg
+        LOGGER.debug("recipient_key: %s, msg: %s", recipient_key, msg)
 
         msg_ident = self.ident_from_message(msg=msg_loaded)
         msg_score = time.time()
