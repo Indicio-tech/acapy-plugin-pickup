@@ -3,7 +3,9 @@ from echo_agent.client import ConnectionInfo, EchoClient
 
 
 @pytest.mark.asyncio
-async def test_messages_received_no_id(echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str):
+async def test_messages_received_no_id(
+    echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str
+):
     """Testing that an empty ID list does not alter the queue."""
 
     async with echo.session(connection, ws_endpoint) as session:
@@ -14,7 +16,11 @@ async def test_messages_received_no_id(echo: EchoClient, connection: ConnectionI
                 "~transport": {"return_route": "all"},
             },
         )
-        initial_status = await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status")
+        initial_status = await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
+        )
     inital_count = initial_status["message_count"]
 
     async with echo.session(connection, ws_endpoint) as session:
@@ -27,13 +33,19 @@ async def test_messages_received_no_id(echo: EchoClient, connection: ConnectionI
             },
         )
 
-        final_status = await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status")
+        final_status = await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
+        )
     final_count = final_status["message_count"]
     assert inital_count == final_count
 
 
 @pytest.mark.asyncio
-async def test_messages_received_with_id(echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str):
+async def test_messages_received_with_id(
+    echo: EchoClient, connection: ConnectionInfo, ws_endpoint: str
+):
     """Testing that accurate ID's remove messages from the queue."""
 
     async with echo.session(connection, ws_endpoint) as session:
@@ -44,7 +56,11 @@ async def test_messages_received_with_id(echo: EchoClient, connection: Connectio
                 "~transport": {"return_route": "all"},
             },
         )
-        initial_status = await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status")
+        initial_status = await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
+        )
     inital_count = initial_status["message_count"]
 
     for _ in range(2):
@@ -67,7 +83,9 @@ async def test_messages_received_with_id(echo: EchoClient, connection: Connectio
         )
 
         wrapped_msgs = await echo.get_message(
-            connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/delivery"
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/delivery",
         )
     msg_ids = []
 
@@ -84,7 +102,11 @@ async def test_messages_received_with_id(echo: EchoClient, connection: Connectio
             },
         )
 
-        final_status = await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status")
+        final_status = await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
+        )
     final_count = final_status["message_count"]
 
     assert final_count == inital_count
@@ -105,7 +127,9 @@ async def test_messages_received_junk_id(
             },
         )
         initial_status = await echo.get_message(
-            connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status"
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
         )
     inital_count = initial_status["message_count"]
 
@@ -122,7 +146,9 @@ async def test_messages_received_junk_id(
         )
 
         final_status = await echo.get_message(
-            connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status"
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
         )
     final_count = final_status["message_count"]
     assert inital_count == final_count

@@ -24,7 +24,11 @@ async def test_delivery_request_empty_queue(
             },
         )
 
-        await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/status")
+        await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/status",
+        )
 
 
 @pytest.mark.asyncio
@@ -93,5 +97,10 @@ async def test_delivery_request_multi_delivery(
             },
         )
 
-        msg = await echo.get_message(connection, session=session, msg_type="https://didcomm.org/messagepickup/2.0/delivery", timeout=1)
+        msg = await echo.get_message(
+            connection,
+            session=session,
+            msg_type="https://didcomm.org/messagepickup/2.0/delivery",
+            timeout=1,
+        )
         assert len(msg["~attach"]) == 3
