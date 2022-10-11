@@ -1,6 +1,7 @@
 """Status Request and response tests"""
 
 import logging
+import asyncio
 
 import pytest
 from echo_agent.client import EchoClient
@@ -59,6 +60,7 @@ async def test_status_request_with_queue(
                 "response_resquested": True,
             },
         )
+    await asyncio.sleep(1)
 
     async with echo.session(connection, ws_endpoint) as session:
         await echo.send_message_to_session(
