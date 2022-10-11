@@ -30,7 +30,7 @@ services:
         --plugin acapy_plugin_pickup
         --no-ledger
         --log-level debug
-        --wallet-type indy
+        --wallet-type askar
         --wallet-name test
         --wallet-key test
         --auto-provision
@@ -40,24 +40,17 @@ services:
 
   echo:
     # Image with session support, replace with latest after merged
-    image: dbluhm/echo-agent:a82900c
+    image: ghcr.io/indicio-tech/echo-agent:0.2.0
     ports:
       - "3002:3002"
     command: --host 0.0.0.0 --port 3002 --log-level debug
 
   redis:
     image: "redis:alpine"
-
     ports:
      - "6379:6379"
-
-    volumes:
-      - ./redis-data:/var/lib/redis
-      - ./redis.conf:/etc/redis/redis.conf
-
     environment:
      - REDIS_REPLICATION_MODE=master
-
     healthcheck:
       test: nc -z localhost 6379 || exit -1
       interval: 10s
@@ -75,6 +68,8 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile.test.runner
+    volumes:
+      - ./tests:/usr/src/app/tests:z,ro
     environment:
       - WAIT_BEFORE_HOSTS=3
       - WAIT_HOSTS=acapy_pickup:3000,echo:3002

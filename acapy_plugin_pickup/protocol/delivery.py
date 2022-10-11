@@ -12,7 +12,7 @@ from typing_extensions import Annotated
 
 from ..acapy import AgentMessage, Attach
 from ..acapy.error import HandlerException
-from ..undelivered_queue.base import UndeliveredInterface, message_id_for_outbound
+from ..undelivered_queue.base import UndeliveredQueue
 from .status import Status
 
 LOGGER = logging.getLogger(__name__)
@@ -44,17 +44,18 @@ class DeliveryRequest(AgentMessage):
                 "route set to all"
             )
 
-        queue = context.inject(UndeliveredInterface)
+        queue = context.inject(UndeliveredQueue)
 
         key = context.message_receipt.sender_verkey
         message_attachments = []
 
         if await queue.has_message_for_key(key):
 
-            for msg in await queue.get_messages_for_key(key=key, count=self.limit):
+            for msg in await queue.get_messages_for_key(key, self.limit):
 
                 attached_msg = Attach.data_base64(
-                    ident=message_id_for_outbound(msg), value=msg.enc_payload
+                    ident=UndeliveredQueue.ident_from_message(msg).decode(),
+                    value=msg,
                 )
                 message_attachments.append(attached_msg)
 
@@ -96,11 +97,13 @@ class MessagesReceived(AgentMessage):
                 "route set to all"
             )
 
-        queue = context.inject(UndeliveredInterface)
+        queue = context.inject(UndeliveredQueue)
         key = context.message_receipt.sender_verkey
 
         if await queue.has_message_for_key(key):
-            await queue.remove_messages_for_key(key=key, msgs=self.message_id_list)
+            await queue.remove_messages_for_key(
+                key, [msg_ident.encode() for msg_ident in self.message_id_list]
+            )
 
         response = Status(message_count=await queue.message_count_for_key(key))
         response.assign_thread_from(self)

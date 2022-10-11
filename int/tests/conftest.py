@@ -1,10 +1,11 @@
 """Common fixtures for testing."""
 
 import asyncio
-import hashlib
 import logging
 import os
+import secrets
 from typing import Iterator, Optional
+from echo_agent.models import ConnectionInfo
 
 import pytest
 from acapy_client.api.connection import create_static, delete_connection, set_metadata
@@ -38,12 +39,12 @@ def backchannel():
 
 @pytest.fixture(scope="session")
 def echo_seed():
-    yield hashlib.sha256(b"acapy-pickup-int-test-runner").hexdigest()[:32]
+    yield secrets.token_hex(32)[:32]
 
 
 @pytest.fixture(scope="session")
 def agent_seed():
-    yield hashlib.sha256(b"acapy-pickup-agent").hexdigest()[:32]
+    yield secrets.token_hex(32)[:32]
 
 
 @pytest.fixture(scope="session")
@@ -99,9 +100,10 @@ def echo_agent(echo_endpoint: str):
     yield EchoClient(base_url=echo_endpoint)
 
 
-@pytest.fixture
-async def echo(echo_agent: EchoClient):
+@pytest.fixture(scope="session")
+async def echo(echo_agent: EchoClient, connection: ConnectionInfo):
     async with echo_agent as client:
+        await client.get_messages(connection)
         yield client
 
 
@@ -125,6 +127,6 @@ async def connection(
         conn = await echo.new_connection(
             seed=echo_seed,
             endpoint=agent_connection.my_endpoint,
-            their_vk=agent_connection.my_verkey,
+            recipient_keys=[agent_connection.my_verkey],
         )
     yield conn

@@ -3,6 +3,7 @@
 
 import logging
 import re
+import json
 from os import getenv
 from typing import cast
 
@@ -12,14 +13,15 @@ from aries_cloudagent.core.profile import Profile
 from aries_cloudagent.core.protocol_registry import ProtocolRegistry
 from aries_cloudagent.transport.outbound.message import OutboundMessage
 from aries_cloudagent.transport.wire_format import BaseWireFormat
+from aries_cloudagent.wallet.util import b64_to_bytes
 from redis import asyncio as aioredis
 
 from .protocol.delivery import Delivery, DeliveryRequest, MessagesReceived
 from .protocol.live_mode import LiveDeliveryChange
 from .protocol.status import Status, StatusRequest
-from .undelivered_queue.base import UndeliveredInterface
-from .undelivered_queue.in_memory_queue import InMemoryQueue
-from .undelivered_queue.redis_persisted_queue import RedisPersistedQueue
+from .undelivered_queue.base import UndeliveredQueue
+from .undelivered_queue.in_memory import InMemoryQueue
+from .undelivered_queue.redis import RedisUndeliveredQueue
 
 UNDELIVERABLE_EVENT_TOPIC = re.compile("acapy::outbound-message::undeliverable")
 LOGGER = logging.getLogger(__name__)
@@ -48,15 +50,19 @@ async def setup(context: InjectionContext):
 
     settings = context.settings.for_plugin("pickup")
     persistence = settings.get("persistence")
+    redis_uri = settings.get("redis", {}).get("server")
+    ttl = settings.get("redis", {}).get("ttl_hours")
 
     if persistence == "mem":
         queue = InMemoryQueue()
     elif persistence == "redis":
-        queue = await setup_redis(settings=settings)
+        queue = RedisUndeliveredQueue(
+            redis=await aioredis.from_url(redis_uri), ttl_seconds=ttl
+        )
     else:
         raise ValueError("Either mem or redis must be set.")
 
-    context.injector.bind_instance(UndeliveredInterface, queue)
+    context.injector.bind_instance(UndeliveredQueue, queue)
 
 
 async def setup_redis(settings):
@@ -73,7 +79,7 @@ async def setup_redis(settings):
     if not redis_uri:
         raise ValueError("redis_uri must be specified.")
 
-    return RedisPersistedQueue(
+    return RedisUndeliveredQueue(
         redis=await aioredis.from_url(redis_uri), ttl_seconds=60 * 60 * ttl
     )
 
@@ -105,5 +111,12 @@ async def undeliverable(profile: Profile, event: Event):
                 sender_key,
             )
 
-    queue = profile.inject(UndeliveredInterface)
-    await queue.add_message(msg=outbound)
+    protected_headers = json.loads(
+        b64_to_bytes(json.loads(outbound.enc_payload)["protected"], urlsafe=True)
+    )
+
+    queue = profile.inject(UndeliveredQueue)
+    for recipient in protected_headers["recipients"]:
+        await queue.add_message(
+            recipient_key=recipient["header"]["kid"], msg=outbound.enc_payload
+        )

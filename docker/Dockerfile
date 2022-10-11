@@ -13,7 +13,7 @@ RUN poetry config virtualenvs.in-project true
 # Setup project
 RUN mkdir acapy_plugin_pickup && touch acapy_plugin_pickup/__init__.py
 COPY pyproject.toml poetry.lock README.md ./
-RUN poetry install --no-dev -E indy
+RUN poetry install --no-dev
 USER $user
 
 FROM bcgovimages/von-image:py36-1.16-1

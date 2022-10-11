@@ -6,7 +6,7 @@ from typing import Optional
 from aries_cloudagent.messaging.request_context import RequestContext
 from aries_cloudagent.messaging.responder import BaseResponder
 
-from ..protocol.delivery import UndeliveredInterface
+from ..protocol.delivery import UndeliveredQueue
 
 from ..acapy import AgentMessage
 from ..acapy.error import HandlerException
@@ -31,7 +31,7 @@ class StatusRequest(AgentMessage):
                 "route set to all."
             )
         recipient_key = self.recipient_key
-        queue = context.inject(UndeliveredInterface)
+        queue = context.inject(UndeliveredQueue)
         count = await queue.message_count_for_key(
             recipient_key or context.message_receipt.sender_verkey
         )
