@@ -3,9 +3,10 @@ FROM bcgovimages/von-image:py36-1.16-1 AS base
 # Install and configure poetry
 USER root
 
-ENV POETRY_VERSION=1.1.11
+ENV POETRY_VERSION=1.1.15
 ENV POETRY_HOME=/opt/poetry
-RUN curl -sSL https://install.python-poetry.org | python -
+RUN curl -sSL https://install.python-poetry.org | python - || (cat /home/indy/poetry-installer* && fail)
+#RUN curl -sSL https://install.python-poetry.org | python -
 
 ENV PATH="/opt/poetry/bin:$PATH"
 RUN poetry config virtualenvs.in-project true
