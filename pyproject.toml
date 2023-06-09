@@ -7,7 +7,7 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.6.9,<4.0"
-aries-cloudagent = { version = "^0.8.1" }
+aries-cloudagent = { version = "0.8.2-rc0", allow-prereleases = true }
 pydantic = "^1.8.1"
 typing-extensions = "^3.7.4"
 python-dateutil = "^2.8.1"
@@ -26,5 +26,5 @@ pytest-asyncio = "^0.14.0"
 indy = ["python3-indy"]
 
 [build-system]
-requires = ["setuptools", "poetry-core>=1.0.0"]
+requires = ["setuptools", "poetry-core>=1.1.5"]
 build-backend = "poetry.core.masonry.api"
