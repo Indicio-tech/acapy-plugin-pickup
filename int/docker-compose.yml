@@ -27,7 +27,7 @@ services:
         --no-ledger
         --log-level debug
         --enable-undelivered-queue
-        --wallet-type indy
+        --wallet-type askar
         --wallet-name test
         --wallet-key test
         --auto-provision
