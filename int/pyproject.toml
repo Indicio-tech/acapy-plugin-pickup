@@ -9,12 +9,12 @@ python = "^3.7"
 pytest = "^6.2.5"
 pytest-asyncio = "^0.16.0"
 echo-agent = {git = "https://github.com/Indicio-tech/echo-agent.git", rev = "a82900c9e9d13c9285344c849000fe4850ff4fda", extras = ["client"]}
-acapy-client = {git = "https://github.com/Indicio-tech/acapy-client.git", rev = "0.7.4"}
+acapy-client = {git = "https://github.com/Indicio-tech/acapy-client.git", rev = "main"}
 
 [tool.poetry.dev-dependencies]
 black = "^21.9b0"
 flake8 = "^4.0.1"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.1.5"]
 build-backend = "poetry.core.masonry.api"
