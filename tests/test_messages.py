@@ -3,7 +3,7 @@
 import pytest
 import json
 from datetime import datetime
-from acapy_plugin_pickup.protocol.status import Status
+from acapy_plugin_pickup.v2_0.status import Status
 
 
 def test_create_status():
