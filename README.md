@@ -175,3 +175,11 @@ Upon receipt of this message, the _Mediator_ knows which messages have been rece
 ### Multiple Recipients
 
 If a message arrives at a _Mediator_ addressed to multiple _Recipients_, the message MUST be queued for each _Recipient_ independently. If one of the addressed _Recipients_ retrieves a message and indicates it has been received, that message MUST still be held and then removed by the other addressed _Recipients_.
+
+### Integration tests
+
+```
+docker-compose -f int/docker-compose.yml build
+docker-compose -f int/docker-compose.yml run tests
+docker-compose -f int/docker-compose.yml down -v
+```
