@@ -82,3 +82,11 @@ configuration options and the mapping to environment variables map, run:
 ```sh
 $ docker run -it --rm acapy-plugin-pickup start --help
 ```
+
+#### Trouble shooting
+
+Apple silicon using ARM may need platform flag(`DOCKER_DEFAULT_PLATFORM=linux/amd64`) for docker.
+example
+```
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build -f ./Dockerfile --tag acapy-plugin-pickup ..
+```
