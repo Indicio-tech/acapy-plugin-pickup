@@ -176,6 +176,11 @@ class AgentMessage(BaseModel, BaseMessage, ABC):
         return self.id
 
     @property
+    def _message_type(self):
+        """Return the message type for this message."""
+        return self.message_type
+
+    @property
     def _thread_id(self) -> Optional[str]:
         """Return this message's thread id."""
         return self.thread and self.thread.thid

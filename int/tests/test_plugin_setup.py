@@ -9,7 +9,8 @@ from echo_agent.models import ConnectionInfo
 LOGGER = logging.getLogger(__name__)
 
 
-#TODO: test for registered messages type
+# TODO: test for registered messages type
+
 
 @pytest.mark.asyncio
 async def test_protocol_message(echo: EchoClient, connection: ConnectionInfo):
@@ -20,10 +21,10 @@ async def test_protocol_message(echo: EchoClient, connection: ConnectionInfo):
         {
             "@type": "https://didcomm.org/discover-features/2.0/queries",
             "queries": [
-            {
-                "feature-type": "protocol",
-                "match": "https://didcomm.org/messagepickup/2.0*"
-            }
+                {
+                    "feature-type": "protocol",
+                    "match": "https://didcomm.org/messagepickup/2.0*",
+                }
             ],
             "~transport": {"return_route": "all"},
         },
@@ -31,6 +32,6 @@ async def test_protocol_message(echo: EchoClient, connection: ConnectionInfo):
     response = await echo.get_message(connection)
     LOGGER.debug(f"discovery test {response}")
     assert response["disclosures"][0]["id"] == "https://didcomm.org/messagepickup/2.0"
-    
-#TODO: test registered events
-    
+
+
+# TODO: test registered events
