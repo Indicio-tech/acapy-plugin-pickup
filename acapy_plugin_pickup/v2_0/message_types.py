@@ -2,7 +2,7 @@
 
 from aries_cloudagent.protocols.didcomm_prefix import DIDCommPrefix
 
-PROTOCOL = "https://didcomm.org/messagepickup/2.0"
+PROTOCOL = "https://didcomm.org/messagepickup"
 VERSION = "2.0"
 BASE = f"{PROTOCOL}/{VERSION}"
 
