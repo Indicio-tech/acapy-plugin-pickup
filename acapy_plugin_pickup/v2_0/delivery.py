@@ -62,9 +62,7 @@ class DeliveryRequest(AgentMessage):
 
             returned_count = 0
             async with context.session() as profile_session:
-
                 for msg in get_messages_for_key(queue, key):
-
                     recipient_key = (
                         msg.target_list[0].recipient_keys
                         or context.message_receipt.recipient_verkey
@@ -97,13 +95,11 @@ class DeliveryRequest(AgentMessage):
                         break
 
             response = Delivery(message_attachments=message_attachments)
-            response.assign_thread_from(self)
-            await responder.send_reply(response)
-
         else:
             response = Status(recipient_key=self.recipient_key, message_count=0)
-            response.assign_thread_from(self)
-            await responder.send_reply(response)
+
+        response.assign_thread_from(self)
+        await responder.send_reply(response)
 
 
 class Delivery(AgentMessage):
@@ -159,7 +155,6 @@ def remove_message_by_tag(queue: DeliveryQueue, recipient_key: str, tag: str):
 def remove_message_by_tag_list(
     queue: DeliveryQueue, recipient_key: str, tag_list: Set[str]
 ):
-
     # For debugging, logs the contents of each message as it's retrieved from the queue
     for i in queue.queue_by_key[recipient_key]:
         LOGGER.debug("%s", i.msg)
