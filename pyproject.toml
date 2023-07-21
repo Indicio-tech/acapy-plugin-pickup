@@ -6,8 +6,8 @@ authors = ["Daniel Bluhm <dbluhm@pm.me>", "Micah Peltier <micah6_8@yahoo.com>", 
 license = "Apache-2.0"
 
 [tool.poetry.dependencies]
-python = ">=3.8,<4.0"
-aries-cloudagent = { version = "0.8.2", extras = ["askar", "bbs", "indy"] }
+python = ">=3.9,<4.0"
+aries-cloudagent = { version = "0.9.0rc0", extras = ["askar", "bbs", "indy"], allow-prereleases = true }
 pydantic = "^1.8.1"
 typing-extensions = "^3.7.4"
 python-dateutil = "^2.8.1"
